@@ -1,0 +1,51 @@
+Early Enlightenment
+Tasks
+1. Set up the project and make sure the app runs.
+2. Set up the database to store user information.
+3. Connect the app to an AI service.
+4. Set up the app’s colors, fonts, and overall design.
+5. Create the welcome screen.
+6. Create the main journaling screen with a text box.
+7. Add a submit button and a loading screen.
+8. Set up navigation between all the screens.
+9. Set up the AI instructions for understanding journal entries.
+10. Summarize journal entries in a supportive way.
+11. Create the screen that displays the summary.
+12. Add an option for users to correct the summary.
+13. Make sure the AI can update summaries when users make corrections.
+14. Create the feelings selection screen with selectable emotions.
+15. Set up the AI to consider the feelings selected by the user.
+16. Get the AI to create a quote based on the user’s situation.
+17. Get the AI to suggest a small, realistic step toward the user’s goal.
+18. Create the front and back of the daily quote card.
+19. Add the card-flipping feature to show the quote and suggested goal.
+20. Save journal entries and AI summaries.
+21. Save users’ selected feelings and daily check-ins.
+22. Save previously used quotes and suggested goals.
+23. Make sure users don’t receive the same quotes or goals repeatedly.
+24. Add a way for users to revisit previous journal entries.
+25. Test the entire journaling and quote card process.
+26. Test what happens when users submit empty entries or the AI stops working.
+27. Check that the app works on phones and that user information stays private.
+
+
+API KEY PROTECTION – TEAM INSTRUCTIONS
+Every team member must follow these steps when setting up an API key for this project.
+1. Open the Early_Enlightenment project in Android Studio.
+2. In the main project folder, create a new file named API_KEY.txt.
+3. Open the file and enter your API key. Keep your actual key private.
+4. Open the .gitignore file in the main project folder.
+5. Add the following line if it is not already there:
+API_KEY.txt
+6. Save the .gitignore file.
+7. Open the Terminal in Android Studio and run:
+git check-ignore -v API_KEY.txt
+8. Make sure Git recognizes the file as ignored.
+9. Check the Commit window to make sure API_KEY.txt does not appear as a file to upload.
+IMPORTANT:
+• Never commit or push your API_KEY.txt file to GitHub.
+• Never share your API key with other people.
+• Do not put API keys directly into your source code.
+• Each team member should keep their own API key file on their computer.
+• If an API key is accidentally uploaded to GitHub, revoke it and generate a new one.
+The .gitignore file is already included in the project, so team members should not need to add the API_KEY.txt rule again.
