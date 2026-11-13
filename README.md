@@ -10,3 +10,8 @@ tayjmcdile-alt
 Jaydan Bridges 
 jbridg@xula.edu
 Jbridg2
+
+| #Who          | #Date         | #What         |
+| ------------- | ------------- | ------------- |
+|               |               |               |
+|               |               |               |
