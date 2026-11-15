@@ -6,7 +6,11 @@
         <option name="selectionMode" value="DROPDOWN" />
         <DialogSelection />
       </SelectionState>
-      <SelectionState runConfigName="Tripple_Threat.app.androidTest">
+      <SelectionState runConfigName="Tripple_Threat.app">
+        <option name="selectionMode" value="DROPDOWN" />
+        <DialogSelection />
+      </SelectionState>
+      <SelectionState runConfigName="Tripple Threat">
         <option name="selectionMode" value="DROPDOWN" />
         <DialogSelection />
       </SelectionState>
