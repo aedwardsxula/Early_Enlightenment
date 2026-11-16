@@ -20,27 +20,18 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.tripplethreat.ui.theme.TrippleThreatTheme
-import com.google.firebase.Firebase
-import com.google.firebase.ai.ai
-import com.google.firebase.ai.type.GenerativeBackend
-import com.google.firebase.appcheck.appCheck
-import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
-import com.google.firebase.initialize
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Initialize Firebase safely
-        try {
-            Firebase.initialize(context = this)
-            Firebase.appCheck.installAppCheckProviderFactory(
-                DebugAppCheckProviderFactory.getInstance()
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
 
         setContent {
             TrippleThreatTheme {
@@ -360,6 +351,49 @@ fun LessonsScreen() {
     }
 }
 
+// Networking function to query Cloudflare Workers AI backend
+suspend fun queryCloudflareAI(question: String): String = withContext(Dispatchers.IO) {
+    val url = URL("https://early-enlightenment-aicopy.jbridg2.workers.dev")
+    val connection = (url.openConnection() as HttpURLConnection).apply {
+        requestMethod = "POST"
+        setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+        setRequestProperty("Accept", "application/json")
+        doOutput = true
+        connectTimeout = 15000
+        readTimeout = 15000
+    }
+
+    try {
+        val jsonInput = JSONObject().apply {
+            put("question", question)
+        }.toString()
+
+        connection.outputStream.use { os ->
+            os.write(jsonInput.toByteArray(Charsets.UTF_8))
+        }
+
+        val responseCode = connection.responseCode
+        if (responseCode in 200..299) {
+            val responseString = BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                reader.readText()
+            }
+            val jsonResponse = JSONObject(responseString)
+            if (jsonResponse.has("answer")) {
+                jsonResponse.getString("answer")
+            } else {
+                throw Exception("Response missing 'answer' field.")
+            }
+        } else {
+            val errorString = connection.errorStream?.let { stream ->
+                BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { it.readText() }
+            } ?: "HTTP error code: $responseCode"
+            throw Exception(errorString)
+        }
+    } finally {
+        connection.disconnect()
+    }
+}
+
 @Composable
 fun AiTutorScreen() {
     var promptText by remember { mutableStateOf("") }
@@ -466,14 +500,11 @@ fun AiTutorScreen() {
 
                         coroutineScope.launch {
                             try {
-                                val model = Firebase.ai(backend = GenerativeBackend.googleAI())
-                                    .generativeModel("gemini-1.5-flash")
-                                val response = model.generateContent(prompt)
-                                val aiReply = response.text ?: "No response received."
+                                val aiReply = queryCloudflareAI(prompt)
                                 chatMessages.add("AI Tutor" to aiReply)
                             } catch (e: Exception) {
-                                errorMessage = "AI Error: ${e.localizedMessage ?: "Please ensure google-services.json matches com.example.tripplethreat"}"
-                                chatMessages.add("System" to "Failed to generate AI response. Check Firebase configuration and google-services.json.")
+                                errorMessage = "Network Error: ${e.localizedMessage ?: "Failed to reach AI worker."}"
+                                chatMessages.add("System" to "Failed to generate AI response. Please check your connection.")
                             } finally {
                                 isLoading = false
                             }
