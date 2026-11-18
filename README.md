@@ -25,9 +25,11 @@ Jbridg2
 
 3(b). Add at least one significant feature based on the Affirmation or the Home Screen.
 
-|   Who  |     Date   |                         What                        |
-|------- | ---------- |---------------------------------------------------- |
 <!-- | Jayden | 11/12/2026 | Set up the project and make sure the app runs.      | -->
 <!-- | Peyton | 11/14/2026 | Set up the database to store user information.      | -->
 <!-- | Jaydan | 11/14/2026 | Connect the app to an AI service.                   | -->
 <!-- | Jaydan | 11/14/2026 | Set up the app's colors, fonts, and overall design. | -->
+
+|   Who  |     Date   |                         What                        |
+|------- | ---------- |---------------------------------------------------- |
+
