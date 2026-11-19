@@ -12,10 +12,10 @@ A project developed by Jayden Brdiges, Peyton Lucas, and Taylor McDile.
 
 ## Table of Contents
 
--[Project Description}(#project-description)
+-[Project Description](#project-description)
 -[Team Members](#team-members)
 -[Project Tasks](#project-tasks)
--[Contrbutors])#contributors)
+-[Contrbutors](#contributors)
 
 ---
 
