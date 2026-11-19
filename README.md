@@ -13,6 +13,8 @@ A project developed by Jayden Brdiges, Peyton Lucas, and Taylor McDile.
 ## Table of Contents
 
 -[Project Description](#project-description)
+-[Instructions To Get Started](instructions-to-get-started)
+-[Where To Get Help](where-to-get-help)
 -[Team Members](#team-members)
 -[Project Tasks](#project-tasks)
 -[Contrbutors](#contributors)
@@ -24,6 +26,19 @@ A project developed by Jayden Brdiges, Peyton Lucas, and Taylor McDile.
 Early Enlightenment is a mental wellness check-in application designed to help users reflect on their thoughts, receive personalized affirmations, and discover small self-care activities. 
 
 The application uses AI API integration to generate reflections, supportive affirmations, and personalized self-care suggestions based on user input. 
+
+
+---
+
+## Instructions To Get Started
+
+
+---
+
+## Where To Get Help
+
+
+---
 
 ## Team Members
 
