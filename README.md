@@ -30,6 +30,3 @@ Jbridg2
 <!-- | Jaydan | 11/14/2026 | Connect the app to an AI service.                   | -->
 <!-- | Jaydan | 11/14/2026 | Set up the app's colors, fonts, and overall design. | -->
 
-|   Who  |     Date   |                         What                        |
-|------- | ---------- |---------------------------------------------------- |
-
