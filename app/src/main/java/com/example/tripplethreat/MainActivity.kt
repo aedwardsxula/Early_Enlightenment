@@ -3,16 +3,23 @@ package com.example.tripplethreat
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,15 +27,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.tripplethreat.ui.theme.LightBlueBackground
 import com.example.tripplethreat.ui.theme.TrippleThreatTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private var baseTimeMillis: Long = System.currentTimeMillis()
+private var timestampStepCounter: Long = 0L
+
+fun getCurrentTimestamp(pattern: String = "h:mm:ss a"): String {
+    val timeForStep = baseTimeMillis + (timestampStepCounter * 5 * 60 * 1000L)
+    timestampStepCounter++
+    return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(timeForStep))
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,7 +60,7 @@ class MainActivity : ComponentActivity() {
             TrippleThreatTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = LightBlueBackground
                 ) {
                     AppRoot()
                 }
@@ -59,94 +81,818 @@ enum class DashboardTab(val title: String, val icon: ImageVector) {
     AI_TUTOR("AI Tutor", Icons.Default.SmartToy)
 }
 
+enum class CheckInStep {
+    IDLE,
+    FORM,
+    REFLECTION
+}
+
+data class ApiNinjaQuote(
+    val quote: String,
+    val author: String,
+    val category: String = ""
+)
+
+data class ChatMessage(
+    val sender: String,
+    val text: String,
+    val timestamp: String = getCurrentTimestamp("h:mm:ss a")
+)
+
+data class CheckInRecord(
+    val thought: String,
+    val reflection: String,
+    val keywords: List<String>,
+    val quote: ApiNinjaQuote?,
+    val timestamp: String = getCurrentTimestamp("MMM dd, yyyy 'at' h:mm:ss a")
+)
+
+data class ActiveGoal(
+    val text: String,
+    val timestamp: String = getCurrentTimestamp("h:mm a")
+)
+
+data class LessonActivity(
+    val topicTitle: String,
+    val category: String,
+    val timestamp: String = getCurrentTimestamp("h:mm a")
+)
+
+data class EncouragementRecord(
+    val message: String,
+    val timestamp: String = getCurrentTimestamp("h:mm:ss a"),
+    val triggerSource: String = "Manual"
+)
+
+val encouragementPool = listOf(
+    "You are capable of achieving amazing things!",
+    "Every small step brings you closer to your wellness goals.",
+    "Believe in yourself and keep pushing forward!",
+    "Your dedication and mindfulness are truly inspiring.",
+    "Take a deep breath; you are doing fantastic!",
+    "Challenges are just stepping stones for your personal growth.",
+    "Celebrate your progress today, no matter how small!",
+    "You possess the inner strength to overcome any difficulty."
+)
+
+suspend fun fetchQuotesFromApiNinjas(apiKey: String): List<ApiNinjaQuote> = withContext(Dispatchers.IO) {
+    val quotes = mutableListOf<ApiNinjaQuote>()
+    val url = URL("https://api.api-ninjas.com/v1/quotes")
+
+    if (apiKey.isNotBlank()) {
+        for (i in 1..5) {
+            try {
+                val connection = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    setRequestProperty("X-Api-Key", apiKey)
+                    setRequestProperty("Accept", "application/json")
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                }
+                if (connection.responseCode in 200..299) {
+                    val text = BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { it.readText() }
+                    val jsonArray = JSONArray(text)
+                    if (jsonArray.length() > 0) {
+                        val obj = jsonArray.getJSONObject(0)
+                        quotes.add(
+                            ApiNinjaQuote(
+                                quote = obj.optString("quote", ""),
+                                author = obj.optString("author", "Unknown"),
+                                category = obj.optString("category", "")
+                            )
+                        )
+                    }
+                }
+                connection.disconnect()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    if (quotes.size < 5) {
+        val fallbackPool = listOf(
+            ApiNinjaQuote("Success is not final, failure is not fatal: it is the courage to continue that counts.", "Winston Churchill"),
+            ApiNinjaQuote("Believe you can and you're halfway there.", "Theodore Roosevelt"),
+            ApiNinjaQuote("It is during our darkest moments that we must focus to see the light.", "Aristotle"),
+            ApiNinjaQuote("Success usually comes to those who are too busy to be looking for it.", "Henry David Thoreau"),
+            ApiNinjaQuote("The only limit to our realization of tomorrow will be our doubts of today.", "Franklin D. Roosevelt"),
+            ApiNinjaQuote("Act as if what you do makes a difference. It does.", "William James"),
+            ApiNinjaQuote("What you do today can improve all your tomorrows.", "Ralph Marston")
+        )
+        val missing = 5 - quotes.size
+        quotes.addAll(fallbackPool.shuffled().take(missing))
+    }
+    quotes.take(5)
+}
+
+fun extractTop5Keywords(quotes: List<ApiNinjaQuote>): List<String> {
+    val stopWords = setOf(
+        "the", "and", "a", "of", "to", "in", "is", "it", "you", "that", "was", "for", "on", "are",
+        "with", "as", "i", "his", "they", "be", "at", "one", "have", "this", "from", "or", "had",
+        "by", "not", "word", "but", "what", "some", "we", "can", "out", "other", "were", "all",
+        "there", "when", "up", "use", "your", "how", "said", "an", "each", "she", "which", "do",
+        "their", "time", "if", "will", "way", "about", "many", "then", "them", "write", "would",
+        "like", "so", "these", "her", "long", "make", "thing", "see", "him", "two", "has", "look",
+        "more", "day", "could", "go", "come", "did", "number", "sound", "no", "most", "people",
+        "my", "over", "know", "water", "than", "call", "first", "who", "may", "down", "side",
+        "been", "now", "find", "any", "new", "work", "part", "take", "get", "place", "made",
+        "live", "where", "after", "back", "little", "only", "round", "man", "year", "came",
+        "show", "every", "good", "me", "give", "our", "under", "name", "very", "through",
+        "just", "form", "sentence", "great", "think", "say", "help", "low", "line", "differ"
+    )
+
+    val wordCounts = mutableMapOf<String, Int>()
+    for (quoteObj in quotes) {
+        val words = quoteObj.quote.lowercase()
+            .replace(Regex("[^a-zA-Z0-9\\s]"), "")
+            .split(Regex("\\s+"))
+            .filter { it.length >= 3 && !stopWords.contains(it) }
+
+        for (word in words) {
+            wordCounts[word] = (wordCounts[word] ?: 0) + 1
+        }
+    }
+
+    val sorted = wordCounts.entries.sortedByDescending { it.value }.map { it.key }
+    return if (sorted.size >= 5) {
+        sorted.take(5)
+    } else {
+        val defaultKeywords = listOf("courage", "success", "future", "moments", "doubts")
+        (sorted + defaultKeywords).distinct().take(5)
+    }
+}
+
+fun findBestMatchingQuote(selectedKeywords: Set<String>, quotes: List<ApiNinjaQuote>): ApiNinjaQuote {
+    if (quotes.isEmpty()) {
+        return ApiNinjaQuote("Believe you can and you're halfway there.", "Theodore Roosevelt")
+    }
+    var bestQuote = quotes.first()
+    var maxMatchCount = -1
+
+    for (quoteObj in quotes) {
+        val textLower = quoteObj.quote.lowercase()
+        var matches = 0
+        for (kw in selectedKeywords) {
+            if (textLower.contains(kw.lowercase())) {
+                matches++
+            }
+        }
+        if (matches > maxMatchCount) {
+            maxMatchCount = matches
+            bestQuote = quoteObj
+        }
+    }
+    return bestQuote
+}
+
 @Composable
 fun AppRoot() {
     var currentScreen by remember { mutableStateOf(AppScreen.WELCOME) }
+    val checkInHistory = remember { mutableStateListOf<CheckInRecord>() }
+    var activeSelfCareGoal by remember { mutableStateOf<ActiveGoal?>(null) }
+    var currentAffirmation by remember {
+        mutableStateOf("I am capable, resilient, and taking positive steps toward my wellness.")
+    }
+    val lessonHistory = remember { mutableStateListOf<LessonActivity>() }
 
-    when (currentScreen) {
-        AppScreen.WELCOME -> {
-            HomeScreen(onStartLearning = {
-                currentScreen = AppScreen.DASHBOARD
-            })
-        }
-        AppScreen.DASHBOARD -> {
-            MainDashboardScreen(onNavigateHome = {
-                currentScreen = AppScreen.WELCOME
-            })
+    var currentEncouragement by remember {
+        mutableStateOf(
+            EncouragementRecord(
+                message = encouragementPool.first(),
+                timestamp = getCurrentTimestamp("h:mm:ss a"),
+                triggerSource = "Initial"
+            )
+        )
+    }
+    var encouragementViewCount by remember { mutableIntStateOf(1) }
+
+    fun triggerNewEncouragement(source: String = "Step Completion") {
+        val nextMsg = encouragementPool.filter { it != currentEncouragement.message }.random()
+        currentEncouragement = EncouragementRecord(
+            message = nextMsg,
+            timestamp = getCurrentTimestamp("h:mm:ss a"),
+            triggerSource = source
+        )
+        encouragementViewCount++
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = LightBlueBackground
+    ) {
+        when (currentScreen) {
+            AppScreen.WELCOME -> {
+                HomeScreen(
+                    onStartLearning = { currentScreen = AppScreen.DASHBOARD },
+                    checkInHistory = checkInHistory,
+                    onAddCheckIn = { record ->
+                        checkInHistory.add(0, record)
+                        triggerNewEncouragement("Completed Check-in Step")
+                    },
+                    activeSelfCareGoal = activeSelfCareGoal,
+                    currentEncouragement = currentEncouragement,
+                    encouragementViewCount = encouragementViewCount,
+                    onGetNewEncouragement = { triggerNewEncouragement("Button Click") }
+                )
+            }
+            AppScreen.DASHBOARD -> {
+                MainDashboardScreen(
+                    onNavigateHome = { currentScreen = AppScreen.WELCOME },
+                    checkInHistory = checkInHistory,
+                    activeSelfCareGoal = activeSelfCareGoal,
+                    onSelectGoal = { goal ->
+                        activeSelfCareGoal = goal
+                        triggerNewEncouragement("Set Active Goal Step")
+                    },
+                    currentAffirmation = currentAffirmation,
+                    onAffirmationChange = { currentAffirmation = it },
+                    lessonHistory = lessonHistory,
+                    onCompleteLesson = { activity ->
+                        lessonHistory.add(0, activity)
+                        triggerNewEncouragement("Completed Lesson Step")
+                    },
+                    currentEncouragement = currentEncouragement,
+                    encouragementViewCount = encouragementViewCount,
+                    onGetNewEncouragement = { triggerNewEncouragement("Button Click") }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun HomeScreen(onStartLearning: () -> Unit) {
-    Column(
+fun HomeScreen(
+    onStartLearning: () -> Unit,
+    checkInHistory: List<CheckInRecord> = emptyList(),
+    onAddCheckIn: (CheckInRecord) -> Unit = {},
+    activeSelfCareGoal: ActiveGoal? = null,
+    currentEncouragement: EncouragementRecord? = null,
+    encouragementViewCount: Int = 0,
+    onGetNewEncouragement: () -> Unit = {}
+) {
+    var checkInStep by remember { mutableStateOf(CheckInStep.IDLE) }
+    var userThought by remember { mutableStateOf("") }
+    var reflectionText by remember { mutableStateOf("") }
+    var fetchedQuotes by remember { mutableStateOf<List<ApiNinjaQuote>>(emptyList()) }
+    var extractedKeywords by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedKeywords by remember { mutableStateOf(setOf<String>()) }
+    var matchingQuote by remember { mutableStateOf<ApiNinjaQuote?>(null) }
+    var isLoadingQuotes by remember { mutableStateOf(false) }
+    var isLoadingReflection by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(LightBlueBackground)
+            .padding(24.dp)
     ) {
-        Text(
-            text = "Early Enlightenment",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Text(
-            text = "Your AI Learning Companion",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.secondary
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            ),
-            modifier = Modifier.fillMaxWidth()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp)
-            ) {
-                Text(
-                    text = "Welcome to Triple Threat!",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontWeight = FontWeight.Bold
-                )
+            Text(
+                text = "Early Enlightenment",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-                Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-                Text(
-                    text = "Explore new topics, build your knowledge, and learn with AI.",
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
+            Text(
+                text = "Your Mindful AI Companion",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.secondary
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            when (checkInStep) {
+                CheckInStep.IDLE -> {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Psychology,
+                                contentDescription = "Mindfulness",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(56.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Welcome to Early Enlightenment!",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Take a moment for yourself today. Share what's on your mind and receive a supportive reflection with inspiring quotes.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    currentEncouragement?.let { enc ->
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = "Encouragement",
+                                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Daily Encouragement",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                    }
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    ) {
+                                        Text("Viewed: $encouragementViewCount")
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "\"${enc.message}\"",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Timestamp: ${enc.timestamp} (${enc.triggerSource})",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                    )
+                                    TextButton(onClick = onGetNewEncouragement) {
+                                        Text("New Encouragement")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    if (isLoadingQuotes) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Fetching quotes & keywords...", style = MaterialTheme.typography.bodyLarge)
+                    } else {
+                        Button(
+                            onClick = {
+                                isLoadingQuotes = true
+                                coroutineScope.launch {
+                                    val apiKey = try {
+                                        File("API_KEY.txt").readText().trim()
+                                    } catch (_: Exception) {
+                                        ""
+                                    }
+                                    val quotes = fetchQuotesFromApiNinjas(apiKey)
+                                    val topWords = extractTop5Keywords(quotes)
+                                    fetchedQuotes = quotes
+                                    extractedKeywords = topWords
+                                    selectedKeywords = emptySet()
+                                    isLoadingQuotes = false
+                                    checkInStep = CheckInStep.FORM
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Begin your check-in",
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        }
+                    }
+
+                    activeSelfCareGoal?.let { goal ->
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Active Goal",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Badge {
+                                        Text(goal.timestamp)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = goal.text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+
+                    if (checkInHistory.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    text = "My Past Check-Ins History",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                checkInHistory.take(3).forEach { record ->
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = LightBlueBackground),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 8.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "Check-in Done",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Badge {
+                                                    Text(record.timestamp)
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "\"${record.thought}\"",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = record.reflection,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    OutlinedButton(
+                        onClick = onStartLearning,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open Dashboard")
+                    }
+                }
+
+                CheckInStep.FORM -> {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(24.dp)) {
+                            Text(
+                                text = "What's been on your mind?",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = "Express your thoughts freely below.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            OutlinedTextField(
+                                value = userThought,
+                                onValueChange = { userThought = it },
+                                placeholder = { Text("Type what you are feeling or thinking...") },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(140.dp),
+                                enabled = !isLoadingReflection
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "Select any 3 keywords from quotes (${selectedKeywords.size}/3):",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                extractedKeywords.take(3).forEach { keyword ->
+                                    val isSelected = selectedKeywords.contains(keyword)
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            selectedKeywords = if (isSelected) {
+                                                selectedKeywords - keyword
+                                            } else {
+                                                if (selectedKeywords.size < 3) selectedKeywords + keyword else selectedKeywords
+                                            }
+                                        },
+                                        label = { Text(keyword) }
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                extractedKeywords.drop(3).forEach { keyword ->
+                                    val isSelected = selectedKeywords.contains(keyword)
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            selectedKeywords = if (isSelected) {
+                                                selectedKeywords - keyword
+                                            } else {
+                                                if (selectedKeywords.size < 3) selectedKeywords + keyword else selectedKeywords
+                                            }
+                                        },
+                                        label = { Text(keyword) }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            if (isLoadingReflection) {
+                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { checkInStep = CheckInStep.IDLE },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = !isLoadingReflection
+                                ) {
+                                    Text("Back")
+                                }
+
+                                Button(
+                                    onClick = {
+                                        if (userThought.isNotBlank() && selectedKeywords.size == 3 && !isLoadingReflection) {
+                                            isLoadingReflection = true
+                                            coroutineScope.launch {
+                                                val bestQuote = findBestMatchingQuote(selectedKeywords, fetchedQuotes)
+                                                matchingQuote = bestQuote
+
+                                                val prompt = "Provide a warm, supportive 2-sentence reflection for someone who expressed: '${userThought.trim()}' and selected keywords: ${selectedKeywords.joinToString()}."
+                                                try {
+                                                    val aiResult = queryCloudflareAI(prompt)
+                                                    reflectionText = aiResult
+                                                } catch (_: Exception) {
+                                                    reflectionText = "Thank you for sharing your thoughts: '${userThought.trim()}'. It takes self-awareness to express how you feel. Take a gentle breath and acknowledge your efforts today."
+                                                } finally {
+                                                    isLoadingReflection = false
+                                                    checkInStep = CheckInStep.REFLECTION
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1.5f),
+                                    enabled = userThought.isNotBlank() && selectedKeywords.size == 3 && !isLoadingReflection
+                                ) {
+                                    Text("Prepare Reflection")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                CheckInStep.REFLECTION -> {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(24.dp)) {
+                            Text(
+                                text = "Your Personal Reflection",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = LightBlueBackground
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "What you shared:",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "\"$userThought\"",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    if (selectedKeywords.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Selected Keywords: ${selectedKeywords.joinToString(", ")}",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            matchingQuote?.let { q ->
+                                Card(
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.FormatQuote,
+                                                contentDescription = "Quote",
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Matching Quote:",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = "\"${q.quote}\"",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "— ${q.author}",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(16.dp))
+                            }
+
+                            Text(
+                                text = "Reflection Insight:",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = reflectionText,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            Spacer(modifier = Modifier.height(24.dp))
+
+                            Button(
+                                onClick = {
+                                    val record = CheckInRecord(
+                                        thought = userThought,
+                                        reflection = reflectionText,
+                                        keywords = selectedKeywords.toList(),
+                                        quote = matchingQuote,
+                                        timestamp = getCurrentTimestamp("MMM dd, yyyy 'at' h:mm:ss a")
+                                    )
+                                    onAddCheckIn(record)
+                                    userThought = ""
+                                    reflectionText = ""
+                                    selectedKeywords = emptySet()
+                                    matchingQuote = null
+                                    checkInStep = CheckInStep.IDLE
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Complete Check-in")
+                            }
+                        }
+                    }
+                }
             }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = onStartLearning,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Start Learning")
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainDashboardScreen(onNavigateHome: () -> Unit) {
+fun MainDashboardScreen(
+    onNavigateHome: () -> Unit,
+    checkInHistory: List<CheckInRecord> = emptyList(),
+    activeSelfCareGoal: ActiveGoal? = null,
+    onSelectGoal: (ActiveGoal) -> Unit = {},
+    currentAffirmation: String = "I am capable, resilient, and taking positive steps toward my wellness.",
+    onAffirmationChange: (String) -> Unit = {},
+    lessonHistory: List<LessonActivity> = emptyList(),
+    onCompleteLesson: (LessonActivity) -> Unit = {},
+    currentEncouragement: EncouragementRecord? = null,
+    encouragementViewCount: Int = 0,
+    onGetNewEncouragement: () -> Unit = {}
+) {
     var selectedTab by remember { mutableStateOf(DashboardTab.HOME) }
-    var currentAffirmation by remember { 
-        mutableStateOf("I am capable, resilient, and taking positive steps toward my wellness.") 
-    }
-    var activeSelfCareGoal by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -177,20 +923,29 @@ fun MainDashboardScreen(onNavigateHome: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(LightBlueBackground)
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
                 DashboardTab.HOME -> HomeDashboardTab(
                     onNavigateHome = onNavigateHome,
-                    activeSelfCareGoal = activeSelfCareGoal
+                    activeSelfCareGoal = activeSelfCareGoal,
+                    checkInHistory = checkInHistory,
+                    lessonHistory = lessonHistory,
+                    currentEncouragement = currentEncouragement,
+                    encouragementViewCount = encouragementViewCount,
+                    onGetNewEncouragement = onGetNewEncouragement
                 )
                 DashboardTab.STEPS -> StepsScreen(
                     currentAffirmation = currentAffirmation,
-                    onAffirmationChange = { currentAffirmation = it },
+                    onAffirmationChange = onAffirmationChange,
                     activeGoal = activeSelfCareGoal,
-                    onSelectGoal = { activeSelfCareGoal = it }
+                    onSelectGoal = onSelectGoal
                 )
-                DashboardTab.LESSONS -> LessonsScreen()
+                DashboardTab.LESSONS -> LessonsScreen(
+                    lessonHistory = lessonHistory,
+                    onCompleteLesson = onCompleteLesson
+                )
                 DashboardTab.AI_TUTOR -> AiTutorScreen()
             }
         }
@@ -200,19 +955,26 @@ fun MainDashboardScreen(onNavigateHome: () -> Unit) {
 @Composable
 fun HomeDashboardTab(
     onNavigateHome: () -> Unit,
-    activeSelfCareGoal: String? = null
+    activeSelfCareGoal: ActiveGoal? = null,
+    checkInHistory: List<CheckInRecord> = emptyList(),
+    lessonHistory: List<LessonActivity> = emptyList(),
+    currentEncouragement: EncouragementRecord? = null,
+    encouragementViewCount: Int = 0,
+    onGetNewEncouragement: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .background(LightBlueBackground)
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.surface
             ),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -220,18 +982,65 @@ fun HomeDashboardTab(
                 modifier = Modifier.padding(24.dp)
             ) {
                 Text(
-                    text = "Welcome to Triple Threat!",
+                    text = "Welcome to Early Enlightenment!",
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Explore new topics, build your knowledge, and learn with AI.",
-                    color = MaterialTheme.colorScheme.onPrimary
+                    text = "Explore new topics, check in on your thoughts, and reflect with AI.",
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+            }
+        }
+
+        currentEncouragement?.let { enc ->
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Daily Encouragement",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                            Text("Viewed: $encouragementViewCount")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "\"${enc.message}\"",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Timestamp: ${enc.timestamp} (${enc.triggerSource})",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                        )
+                        TextButton(onClick = onGetNewEncouragement) {
+                            Text("New Message")
+                        }
+                    }
+                }
             }
         }
 
@@ -242,15 +1051,24 @@ fun HomeDashboardTab(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Today's Active Self-Care Goal",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Today's Active Self-Care Goal",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Badge {
+                            Text(goal.timestamp)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = goal,
+                        text = goal.text,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
@@ -258,8 +1076,86 @@ fun HomeDashboardTab(
             }
         }
 
+        if (checkInHistory.isNotEmpty()) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "My Recent Check-Ins Activity",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    checkInHistory.take(2).forEach { record ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "\"${record.thought}\"",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Badge {
+                                Text(record.timestamp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (lessonHistory.isNotEmpty()) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "My Recent Lesson Activity",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    lessonHistory.take(2).forEach { lesson ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = lesson.topicTitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Badge {
+                                Text(lesson.timestamp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Card(
             shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -285,71 +1181,55 @@ fun HomeDashboardTab(
             onClick = onNavigateHome,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Back to Welcome View")
+            Text("Back to Home View")
         }
     }
 }
 
-// Helper function to clean Markdown formatting, filter intro/outro lines, and combine Title + Description per card
 fun parseAndCleanSelfCareSteps(rawResponse: String): List<String> {
-    val lines = rawResponse.lines().map { it.trim() }.filter { it.isNotBlank() }
-    val candidates = mutableListOf<String>()
+    val lines = rawResponse.split("\n", "\r").map { it.trim() }.filter { it.isNotBlank() }
+    val steps = mutableListOf<String>()
 
     for (line in lines) {
-        // Filter out introductory sentences or closing questions
-        if (line.startsWith("I'm glad", ignoreCase = true) ||
-            line.startsWith("I'm happy", ignoreCase = true) ||
-            line.startsWith("I'd be happy", ignoreCase = true) ||
-            line.startsWith("Sure", ignoreCase = true) ||
-            line.startsWith("Here are", ignoreCase = true) ||
-            line.startsWith("Here's", ignoreCase = true) ||
-            line.startsWith("Based on", ignoreCase = true) ||
-            line.startsWith("Do you have", ignoreCase = true) ||
-            line.endsWith("?")
-        ) {
-            continue
-        }
-
-        // Clean Markdown bold **, list markers (1., -, *, •), and leading quotes
         val cleaned = line
-            .replace(Regex("\\*\\*"), "")
-            .replace(Regex("^[0-9]+\\.\\s*"), "")
-            .replace(Regex("^[-*•]\\s*"), "")
-            .replace(Regex("^\"|\"$"), "")
+            .replace(Regex("^(Step\\s*\\d*[:.-]?|\\d+[:.-]|[-*•])\\s*"), "")
             .trim()
-
-        if (cleaned.length > 5) {
-            candidates.add(cleaned)
+        if (cleaned.length > 5 && !cleaned.startsWith("Here are", ignoreCase = true) && !cleaned.startsWith("Based on", ignoreCase = true)) {
+            steps.add(cleaned)
         }
     }
 
-    // Pair short title headers with their descriptions if split across lines
-    val recommendations = mutableListOf<String>()
-    var i = 0
-    while (i < candidates.size) {
-        val current = candidates[i]
-        if (i + 1 < candidates.size && (current.startsWith("Step", ignoreCase = true) || current.length < 45) && !current.contains(".")) {
-            recommendations.add("$current: ${candidates[i + 1]}")
-            i += 2
-        } else {
-            recommendations.add(current)
-            i += 1
+    if (steps.isEmpty()) {
+        val candidates = mutableListOf<String>()
+        for (line in lines) {
+            val cleaned = line.replace(Regex("^[*-•]\\s*"), "").trim()
+            if (cleaned.isNotBlank()) {
+                candidates.add(cleaned)
+            }
         }
+        var i = 0
+        val recommendations = mutableListOf<String>()
+        while (i < candidates.size) {
+            val current = candidates[i]
+            if (i + 1 < candidates.size && (current.startsWith("Step", ignoreCase = true) || current.length < 45)) {
+                recommendations.add("$current: ${candidates[i + 1]}")
+                i += 2
+            } else {
+                recommendations.add(current)
+                i += 1
+            }
+        }
+        return recommendations.take(4)
     }
-
-    return if (recommendations.isNotEmpty()) {
-        recommendations.take(4)
-    } else {
-        listOf(rawResponse.replace(Regex("\\*\\*"), "").trim())
-    }
+    return steps.take(4)
 }
 
 @Composable
 fun StepsScreen(
     currentAffirmation: String,
     onAffirmationChange: (String) -> Unit,
-    activeGoal: String?,
-    onSelectGoal: (String) -> Unit
+    activeGoal: ActiveGoal?,
+    onSelectGoal: (ActiveGoal) -> Unit
 ) {
     var isLoading by remember { mutableStateOf(false) }
     var stepsList by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -359,6 +1239,7 @@ fun StepsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(LightBlueBackground)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -373,10 +1254,9 @@ fun StepsScreen(
             color = MaterialTheme.colorScheme.secondary
         )
 
-        // Current Affirmation Input / Context Card
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -384,7 +1264,7 @@ fun StepsScreen(
                     text = "Your Current Affirmation",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -397,7 +1277,6 @@ fun StepsScreen(
             }
         }
 
-        // Action Button: "Best Small Steps"
         Button(
             onClick = {
                 val affirmationText = currentAffirmation.trim()
@@ -440,7 +1319,6 @@ fun StepsScreen(
             }
         }
 
-        // Display AI-Generated Self-Care Suggestions List
         if (stepsList.isNotEmpty()) {
             Text(
                 text = "Recommended Self-Care Solutions:",
@@ -454,12 +1332,14 @@ fun StepsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(stepsList) { step ->
-                    val isSelected = activeGoal == step
+                    val currentGoal = activeGoal
+                    val goalTimestamp = currentGoal?.timestamp
+                    val isSelected = currentGoal != null && currentGoal.text == step
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceVariant
+                            else MaterialTheme.colorScheme.surface
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -468,13 +1348,19 @@ fun StepsScreen(
                                 text = step,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                else MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             TextButton(
-                                onClick = { onSelectGoal(step) }
+                                onClick = {
+                                    val goal = ActiveGoal(step, getCurrentTimestamp("h:mm a"))
+                                    onSelectGoal(goal)
+                                }
                             ) {
-                                Text(if (isSelected) "✓ Active Goal Set (Home Screen)" else "+ Set as Active Goal for Home")
+                                Text(
+                                    if (isSelected) "✓ Active Goal Set (Set at $goalTimestamp)"
+                                    else "+ Set as Active Goal for Home"
+                                )
                             }
                         }
                     }
@@ -487,7 +1373,10 @@ fun StepsScreen(
 data class LessonTopic(val title: String, val category: String, val description: String)
 
 @Composable
-fun LessonsScreen() {
+fun LessonsScreen(
+    lessonHistory: List<LessonActivity> = emptyList(),
+    onCompleteLesson: (LessonActivity) -> Unit = {}
+) {
     val topics = remember {
         listOf(
             LessonTopic("Mathematics & Logic", "STEM", "Algebra, Geometry, and analytical problem solving."),
@@ -503,6 +1392,7 @@ fun LessonsScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(LightBlueBackground)
             .padding(16.dp)
     ) {
         Text(
@@ -516,6 +1406,43 @@ fun LessonsScreen() {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.secondary
         )
+
+        if (lessonHistory.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "My Studied Lessons History",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    lessonHistory.take(3).forEach { item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "• ${item.topicTitle} (${item.category})",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Badge {
+                                Text(item.timestamp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         LazyColumn(
@@ -526,7 +1453,7 @@ fun LessonsScreen() {
                 Card(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.surface
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -543,7 +1470,7 @@ fun LessonsScreen() {
                                 text = topic.title,
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Badge {
                                 Text(topic.category)
@@ -553,7 +1480,7 @@ fun LessonsScreen() {
                         Text(
                             text = topic.description,
                             style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -573,7 +1500,15 @@ fun LessonsScreen() {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { selectedTopic = null }) {
+                TextButton(onClick = {
+                    val activity = LessonActivity(
+                        topicTitle = topic.title,
+                        category = topic.category,
+                        timestamp = getCurrentTimestamp("h:mm:ss a")
+                    )
+                    onCompleteLesson(activity)
+                    selectedTopic = null
+                }) {
                     Text("Start Lesson")
                 }
             },
@@ -586,7 +1521,6 @@ fun LessonsScreen() {
     }
 }
 
-// Networking function to query Cloudflare Workers AI backend
 suspend fun queryCloudflareAI(question: String): String = withContext(Dispatchers.IO) {
     val url = URL("https://early-enlightenment-aicopy.jbridg2.workers.dev")
     val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -632,7 +1566,7 @@ suspend fun queryCloudflareAI(question: String): String = withContext(Dispatcher
 @Composable
 fun AiTutorScreen() {
     var promptText by remember { mutableStateOf("") }
-    val chatMessages = remember { mutableStateListOf<Pair<String, String>>() }
+    val chatMessages = remember { mutableStateListOf<ChatMessage>() }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
@@ -640,6 +1574,7 @@ fun AiTutorScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(LightBlueBackground)
             .padding(16.dp)
     ) {
         errorMessage?.let { err ->
@@ -674,27 +1609,42 @@ fun AiTutorScreen() {
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(chatMessages) { (sender, text) ->
+                    items(chatMessages) { msg ->
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = if (sender == "You") MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant
+                                containerColor = if (msg.sender == "You") MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surface
                             ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = sender,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (sender == "You") MaterialTheme.colorScheme.onPrimaryContainer
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = msg.sender,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (msg.sender == "You") MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Badge(
+                                        containerColor = if (msg.sender == "You") MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        else MaterialTheme.colorScheme.secondaryContainer
+                                    ) {
+                                        Text(
+                                            text = msg.timestamp,
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = text,
-                                    color = if (sender == "You") MaterialTheme.colorScheme.onPrimaryContainer
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = msg.text,
+                                    color = if (msg.sender == "You") MaterialTheme.colorScheme.onPrimaryContainer
+                                    else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -729,17 +1679,20 @@ fun AiTutorScreen() {
                     val prompt = promptText.trim()
                     if (prompt.isNotBlank() && !isLoading) {
                         promptText = ""
-                        chatMessages.add("You" to prompt)
+                        val userTimestamp = getCurrentTimestamp("h:mm:ss a")
+                        chatMessages.add(ChatMessage("You", prompt, userTimestamp))
                         isLoading = true
                         errorMessage = null
 
                         coroutineScope.launch {
                             try {
                                 val aiReply = queryCloudflareAI(prompt)
-                                chatMessages.add("AI Tutor" to aiReply)
+                                val aiTimestamp = getCurrentTimestamp("h:mm:ss a")
+                                chatMessages.add(ChatMessage("AI Tutor", aiReply, aiTimestamp))
                             } catch (e: Exception) {
                                 errorMessage = "Network Error: ${e.localizedMessage ?: "Failed to reach AI worker."}"
-                                chatMessages.add("System" to "Failed to generate AI response. Please check your connection.")
+                                val sysTimestamp = getCurrentTimestamp("h:mm:ss a")
+                                chatMessages.add(ChatMessage("System", "Failed to generate AI response. Please check your connection.", sysTimestamp))
                             } finally {
                                 isLoading = false
                             }
