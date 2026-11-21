@@ -2,11 +2,15 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
-    id("com.google.gms.google-services")
+}
+
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 
 android {
+    layout.buildDirectory.set(file(System.getProperty("java.io.tmpdir") + "/Early_Enlightenment_build/app"))
     namespace = "com.example.tripplethreat"
     compileSdk = 37
 
@@ -28,8 +32,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
@@ -61,5 +65,5 @@ dependencies {
     // Firebase AI Logic
     implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-ai")
-    debugImplementation("com.google.firebase:firebase-appcheck-debug")
+    debugImplementation(libs.firebase.appcheck.debug)
 }
