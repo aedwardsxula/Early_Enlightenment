@@ -2,7 +2,7 @@
 
 **Mental Wellness Check-In Application**
 
-A project developed by Jayden Bridges, Peyton Lucas, and Taylor McDile.
+A project developed by Jaydan Bridges, Peyton Lucas, and Taylor McDile.
 
 ---
 
@@ -10,9 +10,11 @@ A project developed by Jayden Bridges, Peyton Lucas, and Taylor McDile.
 
 - [Project Description](#project-description)
 - [Complete Team Installation and Setup Instructions](#complete-team-installation-and-setup-instructions)
-- [Cloudflare Workers AI Architecture & Documentation](#cloudflare-workers-ai-architecture--documentation)
+- [Cloudflare Workers AI Architecture & Custom Worker Deployment](#cloudflare-workers-ai-architecture--custom-worker-deployment)
+- [Application Screenshots](#application-screenshots)
 - [Team Members](#team-members)
 - [Project Tasks](#project-tasks)
+- [Current Development Status & Feature Audit](#current-development-status--feature-audit)
 - [Contributors](#contributors)
 
 ---
@@ -95,8 +97,8 @@ The project files specify these versions:
 | Minimum SDK | 26 | Android 8.0 (Oreo) |
 
 **Understanding Gradle Daemon JDK (Java 25) vs. Java Source Compatibility (Java 17):**
-- **Gradle Runtime / Daemon JDK (Java 25):** Specified in `gradle/gradle-daemon-jvm.properties` (`toolchainVersion=25`). This is the JVM that executes the Gradle build daemon. Thanks to the Foojay resolver plugin (`id("org.gradle.toolchains.foojay-resolver-convention")` in `settings.gradle.kts`), Gradle automatically provisions JDK 25 for the daemon if needed.
-- **Java Source & Target Compatibility (`17`):** Configured in `app/build.gradle.kts` (`compileOptions { sourceCompatibility = JavaVersion.VERSION_17 ... }`). This determines the bytecode target for app compilation.
+- **Gradle Runtime / Daemon JDK (Java 25):** Configured in `gradle/gradle-daemon-jvm.properties` (`toolchainVersion=25`). This is the JVM that executes the Gradle build daemon. Thanks to the Foojay resolver plugin (`id("org.gradle.toolchains.foojay-resolver-convention")` in `settings.gradle.kts`), Gradle automatically provisions JDK 25 for the daemon if needed.
+- **Java Source & Target Compatibility (`17`):** Configured in `app/build.gradle.kts` (`compileOptions { sourceCompatibility = JavaVersion.VERSION_17 ... }`). This determines the Java 17 bytecode target for app compilation.
 - **Rule for Teammates:** Select **Embedded JDK** or **JDK 25** under **File → Settings → Build Tools → Gradle**. Android Studio and the Foojay resolver handle the daemon JDK automatically. Do not change plugin or version numbers in build files simply because Android Studio displays an upgrade prompt.
 
 ### Step 5 — Configure Gradle
@@ -104,7 +106,7 @@ The project files specify these versions:
 1. In Android Studio, click **File → Settings** (or **Android Studio → Settings** on macOS).
 2. Open **Build, Execution, Deployment**.
 3. Select **Build Tools → Gradle**.
-4. Under **Gradle JDK**, select **Embedded JDK** or **JDK 25** (or an installed Java 17+ / 25 JDK).
+4. Under **Gradle JDK**, select **Embedded JDK** or an installed **JDK 17+** / **JDK 25**.
 5. Click **Apply**, then **OK**.
 6. In the Project panel, open:
 
@@ -241,11 +243,11 @@ suspend fun queryCloudflareAI(question: String): String = withContext(Dispatcher
 ```
 
 #### How the Data Flows:
-1. The user types a question in `AiTutorScreen` and clicks **Send**.
+1. The user types a question in `AiTutorScreen` or generates steps in `StepsScreen` and clicks **Send** or **Best Small Steps**.
 2. `queryCloudflareAI(prompt)` opens an HTTPS `POST` connection.
-3. The app serializes a JSON payload: `{"question": "What is 2 + 2?"}`.
+3. The app serializes a JSON payload: `{"question": "..."}`.
 4. The Cloudflare Worker receives the request, calls `env.AI.run('@cf/meta/llama-3.1-8b-instruct-fast', { prompt: question })`, and returns a JSON payload `{"answer": "..."}`.
-5. The Android app parses `jsonResponse.getString("answer")` and displays it in the Jetpack Compose chat view.
+5. The Android app parses `jsonResponse.getString("answer")` and renders the formatted output in Compose UI.
 
 ### Step 12 — Check Internet Permission
 
@@ -257,10 +259,6 @@ Open `app/src/main/AndroidManifest.xml` and verify:
 ### Step 13 — Cloudflare Account & API Key Requirements
 - **Do Teammates Need Cloudflare Accounts?** **No.** Teammates can immediately run the app using the existing deployed Worker (`https://early-enlightenment-aicopy.jbridg2.workers.dev`).
 - **Are Client API Keys Required?** **No.** Model execution and authentication are managed on the server side by the Cloudflare Worker via the `AI` binding. Teammates do not need individual API keys or accounts.
-- **Deploying an Independent Worker (Optional):** If a teammate chooses to deploy their own Worker using the code in `cloudflare-worker/`:
-  1. Open `cloudflare-worker/wrangler.toml`.
-  2. Change `name = "early-enlightenment-aicopy"` to a unique name (e.g. `name = "early-enlightenment-yourname"`). **Do not use `early-enlightenment-aicopy`**, as that will overwrite the existing team deployment.
-  3. Run `npx wrangler deploy` and update the Worker URL in `MainActivity.kt`.
 
 ### Step 14 — Test the Hosted Worker in Browser
 1. Open your web browser.
@@ -345,14 +343,43 @@ Follow these exact steps when contributing features or documentation:
 
 ---
 
-## Cloudflare Workers AI Architecture & Documentation
+## Cloudflare Workers AI Architecture & Custom Worker Deployment
 
-Official Reference Documentation:
+For complete details on serverless Worker configuration, refer to our dedicated guide:
+🔗 **[Cloudflare Worker Source & Setup Guide](cloudflare-worker/README.md)**
+
+### Deploying Your Own Cloudflare Worker (Optional)
+If a teammate chooses to deploy an independent Cloudflare Worker instead of using the shared team endpoint:
+
+1. Open `cloudflare-worker/wrangler.toml`.
+2. **IMPORTANT — Use a Unique Worker Name:**  
+   Change `name = "early-enlightenment-aicopy"` to a unique name (e.g. `name = "early-enlightenment-peyton"` or `name = "early-enlightenment-taylor"`). **Do not use `early-enlightenment-aicopy`**, as that will overwrite the team's live deployment.
+3. Install Wrangler and log in:
+   ```bash
+   npm install -g wrangler
+   wrangler login
+   ```
+4. Deploy your custom worker:
+   ```bash
+   wrangler deploy
+   ```
+5. Update your newly generated Worker URL in `MainActivity.kt`.
+
+### Official Reference Documentation
 - 🔗 **Cloudflare Workers AI Get Started:** https://developers.cloudflare.com/workers-ai/get-started/
 - 🔗 **Cloudflare Workers AI Bindings:** https://developers.cloudflare.com/workers-ai/configuration/bindings/
 - 🔗 **Android Studio Manual:** https://developer.android.com/studio
 - 🔗 **Gradle User Guide:** https://docs.gradle.org/
 - 🔗 **Git Manual:** https://git-scm.com/doc
+
+---
+
+## Application Screenshots
+
+Verified live PNG screenshots captured from the Android emulator:
+
+1. 📷 **[Screenshot 1 — AI Tutor Question Entered](screenshots/screenshot1_ai_question.png)**: Displays the AI Tutor screen with `What is 2 + 2?` entered into the prompt field.
+2. 📷 **[Screenshot 2 — AI Response Rendered](screenshots/screenshot2_ai_response.png)**: Displays the AI Tutor screen rendering the live response (*"The answer to 2 + 2 is 4. Let's break it down..."*).
 
 ---
 
@@ -388,7 +415,23 @@ Official Reference Documentation:
 
 ---
 
+## Current Development Status & Feature Audit
+
+| Component / Task | Responsible Teammate | Status | Feature Audit Notes |
+|---|:---:|:---:|---|
+| **Jaydan's Steps Screen (Task 3a)** | **Jaydan Bridges (Navigator)** | ✅ **Completed & Verified** | Built `StepsScreen` with **"Best Small Steps"** button, affirmation input card, coroutine call to Cloudflare Workers AI, loading indicator, error handling, and `LazyColumn` self-care cards. |
+| **Jaydan's Feature Link (Task 3b)** | **Jaydan Bridges (Navigator)** | ✅ **Completed & Verified** | Built **"+ Set as Active Goal for Home"** action on self-care step cards, which updates and displays on the **Home Dashboard** under *"Today's Active Self-Care Goal"*. |
+| **Peyton's Home Screen (Task 1a & 1b)** | Peyton Lucas (Driver) | ⏳ **Pending Teammate** | Navigation & Home view scaffold ready. Teammate to implement "What's on your mind?" form, API-Ninjas quote fetcher, and top 3 keyword pill selectors. |
+| **Taylor's Affirmation Screen (Task 2a & 2b)** | Taylor McDile (Tester) | ⏳ **Pending Teammate** | Navigation tab active. Teammate to implement keyword avoidance pills, API-Ninjas joke fetcher, and cat/dog image toggle. |
+| **AI Tutor Integration** | Team | ✅ **Completed & Verified** | Connected to Cloudflare Workers AI (`early-enlightenment-aicopy.jbridg2.workers.dev`). Verified live on emulator (`What is 2 + 2?` ➔ `4`). |
+| **Theme & Navigation** | Team | ✅ **Completed & Verified** | Material 3 theme (`TrippleThreatTheme`), custom color palette (`Navy`, `Teal`, `Gold`), top app bar, and bottom navigation bar active. |
+
+---
+
 ## Contributors
 
 | Who | Date | What |
 |:---:|:---:|:---:|
+| Jaydan Bridges | Nov 12, 2026 | Navigator setup, Gradle build fixes, Java 17/25 compatibility, Cloudflare AI integration, Steps Screen (Task 3a & 3b), and team README documentation |
+| Peyton Lucas | Nov 12, 2026 | Initial project setup, Home screen design, and navigation structure |
+| Taylor McDile | Nov 12, 2026 | Team repository setup, theme definition, and testing infrastructure |
