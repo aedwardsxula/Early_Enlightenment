@@ -1,12 +1,8 @@
-<div align="center">
-
 # Early_Enlightenment
 
 **Mental Wellness Check-In Application**
 
 A project developed by Jayden Bridges, Peyton Lucas, and Taylor McDile.
-
-</div>
 
 ---
 
@@ -14,9 +10,9 @@ A project developed by Jayden Bridges, Peyton Lucas, and Taylor McDile.
 
 - [Project Description](#project-description)
 - [Complete Team Installation and Setup Instructions](#complete-team-installation-and-setup-instructions)
-- [Cloudflare Workers AI Architecture & Code Breakdown](#cloudflare-workers-ai-architecture--code-breakdown)
+- [Cloudflare Workers AI Architecture & Documentation](#cloudflare-workers-ai-architecture--documentation)
 - [Team Members](#team-members)
-- [Project Tasks & Current Development Status](#project-tasks--current-development-status)
+- [Project Tasks](#project-tasks)
 - [Contributors](#contributors)
 
 ---
@@ -93,22 +89,22 @@ The project files specify these versions:
 | Android Gradle Plugin | 9.4.0 | Configured in `gradle/libs.versions.toml` |
 | Kotlin | 2.2.10 | Plugin `org.jetbrains.kotlin.plugin.compose` |
 | Java Source/Target Compatibility | 17 | Configured in `app/build.gradle.kts` (`JavaVersion.VERSION_17`) |
-| Gradle Runtime / Daemon JDK | Java 25 (or JDK 17+) | Auto-detected / Embedded JDK running Gradle 9.6.0 |
+| Gradle Runtime / Daemon JDK | Java 25 | Configured in `gradle/gradle-daemon-jvm.properties` (`toolchainVersion=25`) |
 | Compile SDK | 37 | Android 16 (API Level 37) |
 | Target SDK | 37 | Android 16 (API Level 37) |
 | Minimum SDK | 26 | Android 8.0 (Oreo) |
 
-**Understanding JDK vs. Java Source Compatibility:**
-- **Gradle Runtime / Daemon JDK (Java 25 / JDK 17+):** This is the Java Virtual Machine that executes Gradle build tasks inside Android Studio. Gradle 9.6.0 supports JDK 17 through JDK 25.
-- **Java Source & Target Compatibility (`17`):** This dictates the Java bytecode language level emitted by the Kotlin and Java compilers (`JavaVersion.VERSION_17`).
-- **Rule for Teammates:** You do not need to force a specific JDK version if your Android Studio Gradle JDK is set to **Embedded JDK** or any compatible **JDK 17+**. Do not change plugin or version numbers in build files simply because Android Studio displays an upgrade notification.
+**Understanding Gradle Daemon JDK (Java 25) vs. Java Source Compatibility (Java 17):**
+- **Gradle Runtime / Daemon JDK (Java 25):** Specified in `gradle/gradle-daemon-jvm.properties` (`toolchainVersion=25`). This is the JVM that executes the Gradle build daemon. Thanks to the Foojay resolver plugin (`id("org.gradle.toolchains.foojay-resolver-convention")` in `settings.gradle.kts`), Gradle automatically provisions JDK 25 for the daemon if needed.
+- **Java Source & Target Compatibility (`17`):** Configured in `app/build.gradle.kts` (`compileOptions { sourceCompatibility = JavaVersion.VERSION_17 ... }`). This determines the bytecode target for app compilation.
+- **Rule for Teammates:** Select **Embedded JDK** or **JDK 25** under **File → Settings → Build Tools → Gradle**. Android Studio and the Foojay resolver handle the daemon JDK automatically. Do not change plugin or version numbers in build files simply because Android Studio displays an upgrade prompt.
 
 ### Step 5 — Configure Gradle
 
 1. In Android Studio, click **File → Settings** (or **Android Studio → Settings** on macOS).
 2. Open **Build, Execution, Deployment**.
 3. Select **Build Tools → Gradle**.
-4. Under **Gradle JDK**, select **Embedded JDK** or an installed **JDK 17+** (such as Java 17, 21, or 25).
+4. Under **Gradle JDK**, select **Embedded JDK** or **JDK 25** (or an installed Java 17+ / 25 JDK).
 5. Click **Apply**, then **OK**.
 6. In the Project panel, open:
 
@@ -259,8 +255,12 @@ Open `app/src/main/AndroidManifest.xml` and verify:
 ```
 
 ### Step 13 — Cloudflare Account & API Key Requirements
-- **Do Teammates Need Cloudflare Accounts?** **No.**
+- **Do Teammates Need Cloudflare Accounts?** **No.** Teammates can immediately run the app using the existing deployed Worker (`https://early-enlightenment-aicopy.jbridg2.workers.dev`).
 - **Are Client API Keys Required?** **No.** Model execution and authentication are managed on the server side by the Cloudflare Worker via the `AI` binding. Teammates do not need individual API keys or accounts.
+- **Deploying an Independent Worker (Optional):** If a teammate chooses to deploy their own Worker using the code in `cloudflare-worker/`:
+  1. Open `cloudflare-worker/wrangler.toml`.
+  2. Change `name = "early-enlightenment-aicopy"` to a unique name (e.g. `name = "early-enlightenment-yourname"`). **Do not use `early-enlightenment-aicopy`**, as that will overwrite the existing team deployment.
+  3. Run `npx wrangler deploy` and update the Worker URL in `MainActivity.kt`.
 
 ### Step 14 — Test the Hosted Worker in Browser
 1. Open your web browser.
