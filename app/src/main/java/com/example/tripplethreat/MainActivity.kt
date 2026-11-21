@@ -9,9 +9,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,7 +55,7 @@ enum class AppScreen {
 enum class DashboardTab(val title: String, val icon: ImageVector) {
     HOME("Home", Icons.Default.Home),
     STEPS("Steps", Icons.Default.Checklist),
-    LESSONS("Lessons", Icons.Default.MenuBook),
+    LESSONS("Lessons", Icons.AutoMirrored.Filled.MenuBook),
     AI_TUTOR("AI Tutor", Icons.Default.SmartToy)
 }
 
