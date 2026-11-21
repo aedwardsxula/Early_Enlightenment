@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.SmartToy
@@ -53,6 +54,7 @@ enum class AppScreen {
 
 enum class DashboardTab(val title: String, val icon: ImageVector) {
     HOME("Home", Icons.Default.Home),
+    STEPS("Steps", Icons.Default.Checklist),
     LESSONS("Lessons", Icons.Default.MenuBook),
     AI_TUTOR("AI Tutor", Icons.Default.SmartToy)
 }
@@ -141,6 +143,10 @@ fun HomeScreen(onStartLearning: () -> Unit) {
 @Composable
 fun MainDashboardScreen(onNavigateHome: () -> Unit) {
     var selectedTab by remember { mutableStateOf(DashboardTab.HOME) }
+    var currentAffirmation by remember { 
+        mutableStateOf("I am capable, resilient, and taking positive steps toward my wellness.") 
+    }
+    var activeSelfCareGoal by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -174,7 +180,16 @@ fun MainDashboardScreen(onNavigateHome: () -> Unit) {
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
-                DashboardTab.HOME -> HomeDashboardTab(onNavigateHome = onNavigateHome)
+                DashboardTab.HOME -> HomeDashboardTab(
+                    onNavigateHome = onNavigateHome,
+                    activeSelfCareGoal = activeSelfCareGoal
+                )
+                DashboardTab.STEPS -> StepsScreen(
+                    currentAffirmation = currentAffirmation,
+                    onAffirmationChange = { currentAffirmation = it },
+                    activeGoal = activeSelfCareGoal,
+                    onSelectGoal = { activeSelfCareGoal = it }
+                )
                 DashboardTab.LESSONS -> LessonsScreen()
                 DashboardTab.AI_TUTOR -> AiTutorScreen()
             }
@@ -183,7 +198,10 @@ fun MainDashboardScreen(onNavigateHome: () -> Unit) {
 }
 
 @Composable
-fun HomeDashboardTab(onNavigateHome: () -> Unit) {
+fun HomeDashboardTab(
+    onNavigateHome: () -> Unit,
+    activeSelfCareGoal: String? = null
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -217,6 +235,29 @@ fun HomeDashboardTab(onNavigateHome: () -> Unit) {
             }
         }
 
+        activeSelfCareGoal?.let { goal ->
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Today's Active Self-Care Goal",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = goal,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+        }
+
         Card(
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth()
@@ -245,6 +286,200 @@ fun HomeDashboardTab(onNavigateHome: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Back to Welcome View")
+        }
+    }
+}
+
+// Helper function to clean Markdown formatting, filter intro/outro lines, and combine Title + Description per card
+fun parseAndCleanSelfCareSteps(rawResponse: String): List<String> {
+    val lines = rawResponse.lines().map { it.trim() }.filter { it.isNotBlank() }
+    val candidates = mutableListOf<String>()
+
+    for (line in lines) {
+        // Filter out introductory sentences or closing questions
+        if (line.startsWith("I'm glad", ignoreCase = true) ||
+            line.startsWith("I'm happy", ignoreCase = true) ||
+            line.startsWith("I'd be happy", ignoreCase = true) ||
+            line.startsWith("Sure", ignoreCase = true) ||
+            line.startsWith("Here are", ignoreCase = true) ||
+            line.startsWith("Here's", ignoreCase = true) ||
+            line.startsWith("Based on", ignoreCase = true) ||
+            line.startsWith("Do you have", ignoreCase = true) ||
+            line.endsWith("?")
+        ) {
+            continue
+        }
+
+        // Clean Markdown bold **, list markers (1., -, *, •), and leading quotes
+        val cleaned = line
+            .replace(Regex("\\*\\*"), "")
+            .replace(Regex("^[0-9]+\\.\\s*"), "")
+            .replace(Regex("^[-*•]\\s*"), "")
+            .replace(Regex("^\"|\"$"), "")
+            .trim()
+
+        if (cleaned.length > 5) {
+            candidates.add(cleaned)
+        }
+    }
+
+    // Pair short title headers with their descriptions if split across lines
+    val recommendations = mutableListOf<String>()
+    var i = 0
+    while (i < candidates.size) {
+        val current = candidates[i]
+        if (i + 1 < candidates.size && (current.startsWith("Step", ignoreCase = true) || current.length < 45) && !current.contains(".")) {
+            recommendations.add("$current: ${candidates[i + 1]}")
+            i += 2
+        } else {
+            recommendations.add(current)
+            i += 1
+        }
+    }
+
+    return if (recommendations.isNotEmpty()) {
+        recommendations.take(4)
+    } else {
+        listOf(rawResponse.replace(Regex("\\*\\*"), "").trim())
+    }
+}
+
+@Composable
+fun StepsScreen(
+    currentAffirmation: String,
+    onAffirmationChange: (String) -> Unit,
+    activeGoal: String?,
+    onSelectGoal: (String) -> Unit
+) {
+    var isLoading by remember { mutableStateOf(false) }
+    var stepsList by remember { mutableStateOf<List<String>>(emptyList()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Best Small Steps",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = "Discover personalized self-care solutions based on your current affirmation.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.secondary
+        )
+
+        // Current Affirmation Input / Context Card
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Your Current Affirmation",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = currentAffirmation,
+                    onValueChange = onAffirmationChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Affirmation Context") },
+                    enabled = !isLoading
+                )
+            }
+        }
+
+        // Action Button: "Best Small Steps"
+        Button(
+            onClick = {
+                val affirmationText = currentAffirmation.trim()
+                if (affirmationText.isNotBlank() && !isLoading) {
+                    isLoading = true
+                    errorMessage = null
+                    coroutineScope.launch {
+                        try {
+                            val prompt = "Based on this mood affirmation: '$affirmationText', generate 4 small, realistic, and practical self-care steps to improve mood. List each step clearly."
+                            val response = queryCloudflareAI(prompt)
+                            stepsList = parseAndCleanSelfCareSteps(response)
+                        } catch (e: Exception) {
+                            errorMessage = "Error fetching self-care steps: ${e.localizedMessage ?: "Please check your network."}"
+                        } finally {
+                            isLoading = false
+                        }
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading && currentAffirmation.isNotBlank()
+        ) {
+            Text("Best Small Steps")
+        }
+
+        if (isLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+
+        errorMessage?.let { err ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = err,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        }
+
+        // Display AI-Generated Self-Care Suggestions List
+        if (stepsList.isNotEmpty()) {
+            Text(
+                text = "Recommended Self-Care Solutions:",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(stepsList) { step ->
+                    val isSelected = activeGoal == step
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = step,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            TextButton(
+                                onClick = { onSelectGoal(step) }
+                            ) {
+                                Text(if (isSelected) "✓ Active Goal Set (Home Screen)" else "+ Set as Active Goal for Home")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
