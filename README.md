@@ -409,6 +409,15 @@ After selecting a goal, they can return to the Home Screen and see that recommen
 
 This allows users to choose one activity they want to focus on instead of only reading a list of suggestions.
 
+### Task 6 — Main Journaling Screen with a Text Box
+
+I implemented Task 6 from the project backlog: **"Create the main journaling screen with a text box."**
+
+- Created a dedicated **Journal** tab (`JournalScreen`) featuring a multi-line text box for writing thoughts, notes, and daily mental wellness journal entries.
+- Added character counter, optional entry title input, and timestamp generation.
+- Added a **Save Entry** action that stores journal entries in a historical log view (`LazyColumn`).
+- Added an **AI Reflection** action that sends journal entries to Cloudflare Workers AI for a supportive summary reflection.
+
 ### AI Tutor
 
 The application also includes an AI Tutor screen that connects to the Cloudflare Worker.

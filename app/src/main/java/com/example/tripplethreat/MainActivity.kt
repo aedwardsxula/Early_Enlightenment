@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Psychology
@@ -77,6 +78,7 @@ enum class AppScreen {
 enum class DashboardTab(val title: String, val icon: ImageVector) {
     HOME("Home", Icons.Default.Home),
     STEPS("Steps", Icons.Default.Checklist),
+    JOURNAL("Journal", Icons.Default.EditNote),
     LESSONS("Lessons", Icons.AutoMirrored.Filled.MenuBook),
     AI_TUTOR("AI Tutor", Icons.Default.SmartToy)
 }
@@ -86,6 +88,13 @@ enum class CheckInStep {
     FORM,
     REFLECTION
 }
+
+data class JournalEntry(
+    val title: String,
+    val text: String,
+    val timestamp: String = getCurrentTimestamp("MMM dd, yyyy 'at' h:mm:ss a"),
+    val aiSummary: String? = null
+)
 
 data class ApiNinjaQuote(
     val quote: String,
@@ -249,6 +258,7 @@ fun findBestMatchingQuote(selectedKeywords: Set<String>, quotes: List<ApiNinjaQu
 fun AppRoot() {
     var currentScreen by remember { mutableStateOf(AppScreen.WELCOME) }
     val checkInHistory = remember { mutableStateListOf<CheckInRecord>() }
+    val journalHistory = remember { mutableStateListOf<JournalEntry>() }
     var activeSelfCareGoal by remember { mutableStateOf<ActiveGoal?>(null) }
     var currentAffirmation by remember {
         mutableStateOf("I am capable, resilient, and taking positive steps toward my wellness.")
@@ -299,6 +309,11 @@ fun AppRoot() {
                 MainDashboardScreen(
                     onNavigateHome = { currentScreen = AppScreen.WELCOME },
                     checkInHistory = checkInHistory,
+                    journalHistory = journalHistory,
+                    onAddJournalEntry = { entry ->
+                        journalHistory.add(0, entry)
+                        triggerNewEncouragement("Journal Entry Step")
+                    },
                     activeSelfCareGoal = activeSelfCareGoal,
                     onSelectGoal = { goal ->
                         activeSelfCareGoal = goal
@@ -882,6 +897,8 @@ fun HomeScreen(
 fun MainDashboardScreen(
     onNavigateHome: () -> Unit,
     checkInHistory: List<CheckInRecord> = emptyList(),
+    journalHistory: List<JournalEntry> = emptyList(),
+    onAddJournalEntry: (JournalEntry) -> Unit = {},
     activeSelfCareGoal: ActiveGoal? = null,
     onSelectGoal: (ActiveGoal) -> Unit = {},
     currentAffirmation: String = "I am capable, resilient, and taking positive steps toward my wellness.",
@@ -942,11 +959,235 @@ fun MainDashboardScreen(
                     activeGoal = activeSelfCareGoal,
                     onSelectGoal = onSelectGoal
                 )
+                DashboardTab.JOURNAL -> JournalScreen(
+                    journalHistory = journalHistory,
+                    onAddJournalEntry = onAddJournalEntry
+                )
                 DashboardTab.LESSONS -> LessonsScreen(
                     lessonHistory = lessonHistory,
                     onCompleteLesson = onCompleteLesson
                 )
                 DashboardTab.AI_TUTOR -> AiTutorScreen()
+            }
+        }
+    }
+}
+
+// Task 6: Main Journaling Screen with a Text Box
+@Composable
+fun JournalScreen(
+    journalHistory: List<JournalEntry>,
+    onAddJournalEntry: (JournalEntry) -> Unit
+) {
+    var titleText by remember { mutableStateOf("") }
+    var bodyText by remember { mutableStateOf("") }
+    var isLoadingAi by remember { mutableStateOf(false) }
+    var aiAnalysis by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Daily Mental Wellness Journal",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = "Write your thoughts, capture your reflections, and analyze your journal entries with AI.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.secondary
+        )
+
+        // Main Journaling Input Card (Task 6: Main Journaling Screen with a text box)
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "New Journal Entry",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = titleText,
+                    onValueChange = { titleText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Entry Title (Optional)") },
+                    placeholder = { Text("e.g. Morning Reflection, Grateful Moments") },
+                    singleLine = true,
+                    enabled = !isLoadingAi
+                )
+
+                OutlinedTextField(
+                    value = bodyText,
+                    onValueChange = { bodyText = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    label = { Text("What's on your mind? (Journal Entry Text Box)") },
+                    placeholder = { Text("Write freely about your feelings, experiences, or reflections today...") },
+                    maxLines = 10,
+                    enabled = !isLoadingAi
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "${bodyText.length} characters",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (bodyText.isNotBlank()) {
+                                val newEntry = JournalEntry(
+                                    title = if (titleText.isNotBlank()) titleText.trim() else "Journal Entry",
+                                    text = bodyText.trim(),
+                                    aiSummary = aiAnalysis
+                                )
+                                onAddJournalEntry(newEntry)
+                                titleText = ""
+                                bodyText = ""
+                                aiAnalysis = null
+                            }
+                        },
+                        enabled = bodyText.isNotBlank() && !isLoadingAi,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Save Entry")
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            if (bodyText.isNotBlank() && !isLoadingAi) {
+                                isLoadingAi = true
+                                coroutineScope.launch {
+                                    try {
+                                        val prompt = "Summarize this mental wellness journal entry in 2 supportive, encouraging sentences: '$bodyText'"
+                                        aiAnalysis = queryCloudflareAI(prompt)
+                                    } catch (e: Exception) {
+                                        aiAnalysis = "Could not fetch AI reflection: ${e.localizedMessage ?: "Network error"}"
+                                    } finally {
+                                        isLoadingAi = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = bodyText.isNotBlank() && !isLoadingAi,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (isLoadingAi) "Analyzing..." else "AI Reflection")
+                    }
+                }
+            }
+        }
+
+        if (isLoadingAi) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+
+        aiAnalysis?.let { summary ->
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "AI Journal Reflection:",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = summary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+
+        // Journal Entry Logs / History List
+        if (journalHistory.isNotEmpty()) {
+            Text(
+                text = "Previous Journal Entries (${journalHistory.size})",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(journalHistory) { entry ->
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = entry.title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = entry.timestamp,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = entry.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            entry.aiSummary?.let { summary ->
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "AI Reflection: $summary",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
