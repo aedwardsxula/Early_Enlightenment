@@ -419,9 +419,9 @@ Verified live PNG screenshots captured from the Android emulator:
 
 | Component / Task | Responsible Teammate | Status | Feature Audit Notes |
 |---|:---:|:---:|---|
-| **Jaydan's Steps Screen (Task 3a)** | **Jaydan Bridges (Navigator)** | ✅ **Completed & Verified** | Built `StepsScreen` with **"Best Small Steps"** button, affirmation input card, coroutine call to Cloudflare Workers AI, loading indicator, error handling, and `LazyColumn` self-care cards. |
-| **Jaydan's Feature Link (Task 3b)** | **Jaydan Bridges (Navigator)** | ✅ **Completed & Verified** | Built **"+ Set as Active Goal for Home"** action on self-care step cards, which updates and displays on the **Home Dashboard** under *"Today's Active Self-Care Goal"*. |
-| **Peyton's Home Screen (Task 1a & 1b)** | Peyton Lucas (Driver) | ⏳ **Pending Teammate** | Navigation & Home view scaffold ready. Teammate to implement "What's on your mind?" form, API-Ninjas quote fetcher, and top 3 keyword pill selectors. |
+| **Jaydan's Steps Screen (Task 3a)** | **Jaydan Bridges (Navigator)** |  **Completed & Verified** | Built `StepsScreen` with **"Best Small Steps"** button, affirmation input card, coroutine call to Cloudflare Workers AI, loading indicator, error handling, and `LazyColumn` self-care cards. |
+| **Jaydan's Feature Link (Task 3b)** | **Jaydan Bridges (Navigator)** |  **Completed & Verified** | Built **"+ Set as Active Goal for Home"** action on self-care step cards, which updates and displays on the **Home Dashboard** under *"Today's Active Self-Care Goal"*. |
+| **Peyton's Home Screen (Task 1a & 1b)** | Peyton Lucas (Driver) | ⏳ **Completed** | Navigation & Home view scaffold ready. Teammate to implement "What's on your mind?" form, API-Ninjas quote fetcher, and top 3 keyword pill selectors. |
 | **Taylor's Affirmation Screen (Task 2a & 2b)** | Taylor McDile (Tester) | ⏳ **Pending Teammate** | Navigation tab active. Teammate to implement keyword avoidance pills, API-Ninjas joke fetcher, and cat/dog image toggle. |
 | **AI Tutor Integration** | Team | ✅ **Completed & Verified** | Connected to Cloudflare Workers AI (`early-enlightenment-aicopy.jbridg2.workers.dev`). Verified live on emulator (`What is 2 + 2?` ➔ `4`). |
 | **Theme & Navigation** | Team | ✅ **Completed & Verified** | Material 3 theme (`TrippleThreatTheme`), custom color palette (`Navy`, `Teal`, `Gold`), top app bar, and bottom navigation bar active. |
