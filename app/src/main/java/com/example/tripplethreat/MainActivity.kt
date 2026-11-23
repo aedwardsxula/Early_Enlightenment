@@ -96,10 +96,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         database = Room.databaseBuilder(
-            applicationContext,
-            AppDatabase::class.java,
-            "early_enlightenment_db"
-        ).fallbackToDestructiveMigration().build()
+                applicationContext,
+                AppDatabase::class.java,
+                "early_enlightenment_db"
+            ).fallbackToDestructiveMigration(false).build()
 
         setContent {
             TrippleThreatTheme {
@@ -221,7 +221,7 @@ suspend fun fetchQuotesFromApiNinjas(apiKey: String): List<ApiNinjaQuote> = with
     val url = URL("https://api.api-ninjas.com/v1/quotes")
 
     if (apiKey.isNotBlank()) {
-        for (i in 1..5) {
+        repeat(5) {
             try {
                 val connection = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -818,17 +818,16 @@ fun HomeScreen(
 
                                                 val prompt = "Provide a warm, supportive 2-sentence reflection for someone who expressed: '${userThought.trim()}' and selected keywords: ${selectedKeywords.joinToString()}."
                                                 val quotePrompt = "Create a short, deeply inspiring, original 1-sentence quote specifically tailored to someone experiencing this situation: '${userThought.trim()}'. Format: \"Quote text\" — AI Mindfulness Companion"
-                                                try {
-                                                    val aiResult = queryCloudflareAI(prompt)
-                                                    reflectionText = aiResult
+                                                reflectionText = try {
+                                                    queryCloudflareAI(prompt)
                                                 } catch (_: Exception) {
-                                                    reflectionText = "Thank you for sharing your thoughts: '${userThought.trim()}'. It takes self-awareness to express how you feel. Take a gentle breath and acknowledge your efforts today."
+                                                    "Thank you for sharing your thoughts: '${userThought.trim()}'. It takes self-awareness to express how you feel. Take a gentle breath and acknowledge your efforts today."
                                                 }
 
-                                                try {
-                                                    aiSituationQuote = queryCloudflareAI(quotePrompt)
+                                                aiSituationQuote = try {
+                                                    queryCloudflareAI(quotePrompt)
                                                 } catch (_: Exception) {
-                                                    aiSituationQuote = "\"In every moment of reflection lies the seed of wisdom and growth.\" — AI Mindfulness Companion"
+                                                    "\"In every moment of reflection lies the seed of wisdom and growth.\" — AI Mindfulness Companion"
                                                 } finally {
                                                     isLoadingReflection = false
                                                     checkInStep = CheckInStep.REFLECTION
@@ -1198,7 +1197,7 @@ fun FeelingsScreen(
                                 try {
                                     val prompt = "A user is currently feeling: ${emotionsList.joinToString()}. Provide a warm, 2-sentence supportive wellness advice or mindfulness tip tailored to these emotions."
                                     guidanceText = queryCloudflareAI(prompt)
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     guidanceText = "Acknowledge your feelings of ${emotionsList.joinToString()}. Take a slow, deep breath and give yourself grace today."
                                 } finally {
                                     val record = FeelingRecord(
@@ -1509,7 +1508,7 @@ fun JournalScreen(
                                                     aiAnalysis = updatedSummary
                                                     userCorrectionText = ""
                                                     isEditingCorrection = false
-                                                } catch (e: Exception) {
+                                                } catch (_: Exception) {
                                                     aiAnalysis = "Updated summary: $userCorrectionText"
                                                 } finally {
                                                     isUpdatingCorrection = false
@@ -1968,7 +1967,7 @@ fun StepsScreen(
                                     val feelingsContext = if (activeSelectedFeelings.isNotEmpty()) " taking into account current feelings of: ${activeSelectedFeelings.joinToString()}" else ""
                                     val prompt = "The user has set the personal goal: '$userGoal'$feelingsContext. Suggest 1 small, realistic, achievable step they can take today toward this goal. Keep it warm, actionable, and 2 sentences long."
                                     aiSuggestedStep = queryCloudflareAI(prompt)
-                                } catch (e: Exception) {
+                                } catch (_: Exception) {
                                     aiSuggestedStep = "Break your goal of '$userGoal' into a tiny 5-minute action today to build momentum."
                                 } finally {
                                     isGoalStepLoading = false
@@ -2103,9 +2102,8 @@ fun StepsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 stepsList.forEach { step ->
-                    val currentGoal = activeGoal
-                    val goalTimestamp = currentGoal?.timestamp
-                    val isSelected = currentGoal != null && currentGoal.text == step
+                    val goalTimestamp = activeGoal?.timestamp
+                    val isSelected = activeGoal != null && activeGoal.text == step
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
