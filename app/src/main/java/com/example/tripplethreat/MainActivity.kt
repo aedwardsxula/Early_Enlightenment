@@ -336,6 +336,7 @@ fun AppRoot() {
             }
             AppScreen.DASHBOARD -> {
                 val feelingHistory = remember { mutableStateListOf<FeelingRecord>() }
+                var activeSelectedFeelings by remember { mutableStateOf<List<String>>(emptyList()) }
                 MainDashboardScreen(
                     onNavigateHome = { currentScreen = AppScreen.WELCOME },
                     checkInHistory = checkInHistory,
@@ -345,8 +346,10 @@ fun AppRoot() {
                         triggerNewEncouragement("Journal Entry Step")
                     },
                     feelingHistory = feelingHistory,
+                    activeSelectedFeelings = activeSelectedFeelings,
                     onAddFeelingRecord = { record ->
                         feelingHistory.add(0, record)
+                        activeSelectedFeelings = record.emotions
                         triggerNewEncouragement("Feelings Selection Step")
                     },
                     activeSelfCareGoal = activeSelfCareGoal,
@@ -935,6 +938,7 @@ fun MainDashboardScreen(
     journalHistory: List<JournalEntry> = emptyList(),
     onAddJournalEntry: (JournalEntry) -> Unit = {},
     feelingHistory: List<FeelingRecord> = emptyList(),
+    activeSelectedFeelings: List<String> = emptyList(),
     onAddFeelingRecord: (FeelingRecord) -> Unit = {},
     activeSelfCareGoal: ActiveGoal? = null,
     onSelectGoal: (ActiveGoal) -> Unit = {},
@@ -994,11 +998,13 @@ fun MainDashboardScreen(
                     currentAffirmation = currentAffirmation,
                     onAffirmationChange = onAffirmationChange,
                     activeGoal = activeSelfCareGoal,
-                    onSelectGoal = onSelectGoal
+                    onSelectGoal = onSelectGoal,
+                    activeSelectedFeelings = activeSelectedFeelings
                 )
                 DashboardTab.JOURNAL -> JournalScreen(
                     journalHistory = journalHistory,
-                    onAddJournalEntry = onAddJournalEntry
+                    onAddJournalEntry = onAddJournalEntry,
+                    activeSelectedFeelings = activeSelectedFeelings
                 )
                 DashboardTab.FEELINGS -> FeelingsScreen(
                     feelingHistory = feelingHistory,
@@ -1208,11 +1214,12 @@ fun FeelingsScreen(
     }
 }
 
-// Task 6: Main Journaling Screen with a Text Box
+// Task 6: Main Journaling Screen with a Text Box (Task 15: AI considers selected feelings)
 @Composable
 fun JournalScreen(
     journalHistory: List<JournalEntry>,
-    onAddJournalEntry: (JournalEntry) -> Unit
+    onAddJournalEntry: (JournalEntry) -> Unit,
+    activeSelectedFeelings: List<String> = emptyList()
 ) {
     var titleText by remember { mutableStateOf("") }
     var bodyText by remember { mutableStateOf("") }
@@ -1236,6 +1243,21 @@ fun JournalScreen(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.secondary
         )
+
+        if (activeSelectedFeelings.isNotEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "AI Mood Context: Feeling ${activeSelectedFeelings.joinToString(", ")}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+        }
 
         // Main Journaling Input Card (Task 6: Main Journaling Screen with a text box)
         Card(
@@ -1317,7 +1339,8 @@ fun JournalScreen(
                                 isLoadingAi = true
                                 coroutineScope.launch {
                                     try {
-                                        val prompt = "Summarize this mental wellness journal entry in 2 supportive, encouraging sentences: '$bodyText'"
+                                        val feelingsContext = if (activeSelectedFeelings.isNotEmpty()) " taking into account that the user is currently feeling: ${activeSelectedFeelings.joinToString()}" else ""
+                                        val prompt = "Summarize this mental wellness journal entry in 2 supportive, encouraging sentences$feelingsContext: '$bodyText'"
                                         aiAnalysis = queryCloudflareAI(prompt)
                                     } catch (e: Exception) {
                                         aiAnalysis = "Could not fetch AI reflection: ${e.localizedMessage ?: "Network error"}"
@@ -1705,7 +1728,8 @@ fun StepsScreen(
     currentAffirmation: String,
     onAffirmationChange: (String) -> Unit,
     activeGoal: ActiveGoal?,
-    onSelectGoal: (ActiveGoal) -> Unit
+    onSelectGoal: (ActiveGoal) -> Unit,
+    activeSelectedFeelings: List<String> = emptyList()
 ) {
     var isLoading by remember { mutableStateOf(false) }
     var stepsList by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -1729,6 +1753,21 @@ fun StepsScreen(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.secondary
         )
+
+        if (activeSelectedFeelings.isNotEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "AI Context: Considering feelings (${activeSelectedFeelings.joinToString(", ")})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(10.dp)
+                )
+            }
+        }
 
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -1761,7 +1800,8 @@ fun StepsScreen(
                     errorMessage = null
                     coroutineScope.launch {
                         try {
-                            val prompt = "Based on this mood affirmation: '$affirmationText', generate 4 small, realistic, and practical self-care steps to improve mood. List each step clearly."
+                            val feelingsContext = if (activeSelectedFeelings.isNotEmpty()) " and current selected feelings: ${activeSelectedFeelings.joinToString()}" else ""
+                            val prompt = "Based on this mood affirmation: '$affirmationText'$feelingsContext, generate 4 small, realistic, and practical self-care steps to improve mood. List each step clearly."
                             val response = queryCloudflareAI(prompt)
                             stepsList = parseAndCleanSelfCareSteps(response)
                         } catch (e: Exception) {
