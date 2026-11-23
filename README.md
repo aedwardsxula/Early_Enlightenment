@@ -589,6 +589,7 @@ The project is still being developed, and each team member is responsible for co
 | Cloudflare Workers AI connection | Completed |
 | AI Tutor testing | Completed |
 | Task 5: Welcome Screen | Completed |
+| Task 8: Set up navigation between all the screens | Completed |
 | Steps Screen | Completed |
 | AI-generated self-care recommendations | Completed |
 | Selected goal displayed on Home | Completed |
