@@ -409,6 +409,15 @@ After selecting a goal, they can return to the Home Screen and see that recommen
 
 This allows users to choose one activity they want to focus on instead of only reading a list of suggestions.
 
+### Task 6 — Main Journaling Screen with a Text Box
+
+I implemented Task 6 from the project backlog: **"Create the main journaling screen with a text box."**
+
+- Created a dedicated **Journal** tab (`JournalScreen`) featuring a multi-line text box for writing daily mental wellness reflections and notes.
+- Added character counter (`103 characters`), optional entry title input, and automatic date/timestamping.
+- Added a **Save Entry** action that stores journal entries in a historical log view (`LazyColumn`).
+- Added an **AI Reflection** action that sends journal entries to Cloudflare Workers AI for a supportive 2-sentence summary reflection.
+
 ### AI Tutor
 
 The application also includes an AI Tutor screen that connects to the Cloudflare Worker.
@@ -446,6 +455,14 @@ The Cloudflare connection was tested using this process.
 8. Confirm that the selected goal appears.
 
 Both the Steps Screen and its connection to the Home Screen were tested on the emulator.
+
+### Testing the Journaling Screen (Task 6)
+
+1. Open the **Journal** tab.
+2. Enter a journal reflection into the multi-line text box (e.g. `Today I am focusing on mindfulness...`).
+3. Click **AI Reflection** and confirm Cloudflare Workers AI returns a supportive summary.
+4. Click **Save Entry**.
+5. Confirm the entry appears in the **Previous Journal Entries** list with timestamp and AI reflection.
 
 ### Testing the Cloudflare Endpoint
 
@@ -574,11 +591,12 @@ The project is still being developed, and each team member is responsible for co
 | Steps Screen | Completed |
 | AI-generated self-care recommendations | Completed |
 | Selected goal displayed on Home | Completed |
+| Task 6: Main Journaling Screen with Text Box | Completed |
 | Full Home Screen check-in | Pending team integration |
 | Affirmation Screen | Pending team integration |
 | Final testing of all three screens together | Pending |
 
-My Steps Screen is working with the current application setup. Once the other assigned screens are finished, we will need to connect the completed features and test the application as a whole.
+My Steps Screen and Task 6 Journaling Screen are working with the current application setup. Once the other assigned screens are finished, we will need to connect the completed features and test the application as a whole.
 
 ---
 
@@ -586,7 +604,7 @@ My Steps Screen is working with the current application setup. Once the other as
 
 | Who | When | Contribution |
 |---|---|---|
-| Jaydan Bridges | Fall 2026 | Steps Screen, Cloudflare Workers AI integration, selected goal feature, and setup documentation |
+| Jaydan Bridges | Fall 2026 | Steps Screen, Task 6 Journaling Screen with text box, Cloudflare Workers AI integration, selected goal feature, and setup documentation |
 | Peyton Lucas | Fall 2026 | Home Screen assignment and team development |
 | Taylor McDile | Fall 2026 | Affirmation Screen assignment and team development |
 
