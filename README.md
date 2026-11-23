@@ -594,11 +594,12 @@ The project is still being developed, and each team member is responsible for co
 | AI-generated self-care recommendations | Completed |
 | Selected goal displayed on Home | Completed |
 | Task 6: Main Journaling Screen with Text Box | Completed |
+| Task 14: Feelings Selection Screen with Selectable Emotions | Completed |
 | Full Home Screen check-in | Pending team integration |
 | Affirmation Screen | Pending team integration |
 | Final testing of all three screens together | Pending |
 
-My Steps Screen and Task 6 Journaling Screen are working with the current application setup. Once the other assigned screens are finished, we will need to connect the completed features and test the application as a whole.
+My Steps Screen, Task 6 Journaling Screen, and Task 14 Feelings Selection Screen are working with the current application setup. Once the other assigned screens are finished, we will need to connect the completed features and test the application as a whole.
 
 ---
 
@@ -606,7 +607,7 @@ My Steps Screen and Task 6 Journaling Screen are working with the current applic
 
 | Who | When | Contribution |
 |---|---|---|
-| Jaydan Bridges | Fall 2026 | Steps Screen, Task 6 Journaling Screen with text box, Cloudflare Workers AI integration, selected goal feature, and setup documentation |
+| Jaydan Bridges | Fall 2026 | Steps Screen, Task 6 Journaling Screen, Task 14 Feelings Selector, Cloudflare Workers AI integration, selected goal feature, and setup documentation |
 | Peyton Lucas | Fall 2026 | Home Screen assignment and team development |
 | Taylor McDile | Fall 2026 | Affirmation Screen assignment and team development |
 

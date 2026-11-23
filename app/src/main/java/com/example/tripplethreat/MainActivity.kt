@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Psychology
@@ -79,6 +80,7 @@ enum class DashboardTab(val title: String, val icon: ImageVector) {
     HOME("Home", Icons.Default.Home),
     STEPS("Steps", Icons.Default.Checklist),
     JOURNAL("Journal", Icons.Default.EditNote),
+    FEELINGS("Feelings", Icons.Default.EmojiEmotions),
     LESSONS("Lessons", Icons.AutoMirrored.Filled.MenuBook),
     AI_TUTOR("AI Tutor", Icons.Default.SmartToy)
 }
@@ -88,6 +90,33 @@ enum class CheckInStep {
     FORM,
     REFLECTION
 }
+
+data class FeelingOption(
+    val emoji: String,
+    val name: String,
+    val category: String
+)
+
+data class FeelingRecord(
+    val emotions: List<String>,
+    val timestamp: String = getCurrentTimestamp("MMM dd, yyyy 'at' h:mm:ss a"),
+    val aiGuidance: String? = null
+)
+
+val defaultFeelingsList = listOf(
+    FeelingOption("😊", "Happy", "Positive"),
+    FeelingOption("🌿", "Calm", "Relaxed"),
+    FeelingOption("⚡", "Energetic", "Positive"),
+    FeelingOption("🧘", "Peaceful", "Relaxed"),
+    FeelingOption("💡", "Inspired", "Positive"),
+    FeelingOption("😔", "Sad", "Challenging"),
+    FeelingOption("😰", "Anxious", "Challenging"),
+    FeelingOption("🥱", "Tired", "Physical"),
+    FeelingOption("😖", "Stressed", "Challenging"),
+    FeelingOption("😶", "Overwhelmed", "Challenging"),
+    FeelingOption("🙏", "Grateful", "Positive"),
+    FeelingOption("🤔", "Reflective", "Mindful")
+)
 
 data class JournalEntry(
     val title: String,
@@ -306,6 +335,7 @@ fun AppRoot() {
                 )
             }
             AppScreen.DASHBOARD -> {
+                val feelingHistory = remember { mutableStateListOf<FeelingRecord>() }
                 MainDashboardScreen(
                     onNavigateHome = { currentScreen = AppScreen.WELCOME },
                     checkInHistory = checkInHistory,
@@ -313,6 +343,11 @@ fun AppRoot() {
                     onAddJournalEntry = { entry ->
                         journalHistory.add(0, entry)
                         triggerNewEncouragement("Journal Entry Step")
+                    },
+                    feelingHistory = feelingHistory,
+                    onAddFeelingRecord = { record ->
+                        feelingHistory.add(0, record)
+                        triggerNewEncouragement("Feelings Selection Step")
                     },
                     activeSelfCareGoal = activeSelfCareGoal,
                     onSelectGoal = { goal ->
@@ -899,6 +934,8 @@ fun MainDashboardScreen(
     checkInHistory: List<CheckInRecord> = emptyList(),
     journalHistory: List<JournalEntry> = emptyList(),
     onAddJournalEntry: (JournalEntry) -> Unit = {},
+    feelingHistory: List<FeelingRecord> = emptyList(),
+    onAddFeelingRecord: (FeelingRecord) -> Unit = {},
     activeSelfCareGoal: ActiveGoal? = null,
     onSelectGoal: (ActiveGoal) -> Unit = {},
     currentAffirmation: String = "I am capable, resilient, and taking positive steps toward my wellness.",
@@ -963,11 +1000,209 @@ fun MainDashboardScreen(
                     journalHistory = journalHistory,
                     onAddJournalEntry = onAddJournalEntry
                 )
+                DashboardTab.FEELINGS -> FeelingsScreen(
+                    feelingHistory = feelingHistory,
+                    onAddFeelingRecord = onAddFeelingRecord
+                )
                 DashboardTab.LESSONS -> LessonsScreen(
                     lessonHistory = lessonHistory,
                     onCompleteLesson = onCompleteLesson
                 )
                 DashboardTab.AI_TUTOR -> AiTutorScreen()
+            }
+        }
+    }
+}
+
+// Task 14: Create the feelings selection screen with selectable emotions
+@Composable
+fun FeelingsScreen(
+    feelingHistory: List<FeelingRecord>,
+    onAddFeelingRecord: (FeelingRecord) -> Unit
+) {
+    var selectedEmotions by remember { mutableStateOf(setOf<String>()) }
+    var isLoadingAi by remember { mutableStateOf(false) }
+    var aiGuidance by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Feelings & Emotion Selector",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = "Select up to 3 emotions that represent how you are feeling right now to receive custom AI mood guidance.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.secondary
+        )
+
+        // Task 14 Card: Selectable Emotions Grid
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "How are you feeling?",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Badge {
+                        Text("${selectedEmotions.size}/3 selected")
+                    }
+                }
+
+                // Grid of selectable emotion chips
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val chunks = defaultFeelingsList.chunked(3)
+                    chunks.forEach { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowItems.forEach { option ->
+                                val isSelected = selectedEmotions.contains(option.name)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        selectedEmotions = if (isSelected) {
+                                            selectedEmotions - option.name
+                                        } else {
+                                            if (selectedEmotions.size < 3) selectedEmotions + option.name else selectedEmotions
+                                        }
+                                    },
+                                    label = { Text("${option.emoji} ${option.name}") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        if (selectedEmotions.isNotEmpty() && !isLoadingAi) {
+                            isLoadingAi = true
+                            coroutineScope.launch {
+                                val emotionsList = selectedEmotions.toList()
+                                var guidanceText: String? = null
+                                try {
+                                    val prompt = "A user is currently feeling: ${emotionsList.joinToString()}. Provide a warm, 2-sentence supportive wellness advice or mindfulness tip tailored to these emotions."
+                                    guidanceText = queryCloudflareAI(prompt)
+                                } catch (e: Exception) {
+                                    guidanceText = "Acknowledge your feelings of ${emotionsList.joinToString()}. Take a slow, deep breath and give yourself grace today."
+                                } finally {
+                                    val record = FeelingRecord(
+                                        emotions = emotionsList,
+                                        aiGuidance = guidanceText
+                                    )
+                                    onAddFeelingRecord(record)
+                                    aiGuidance = guidanceText
+                                    isLoadingAi = false
+                                    selectedEmotions = emptySet()
+                                }
+                            }
+                        }
+                    },
+                    enabled = selectedEmotions.isNotEmpty() && !isLoadingAi,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (isLoadingAi) "Fetching AI Guidance..." else "Save Feelings & Get AI Advice")
+                }
+            }
+        }
+
+        if (isLoadingAi) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+
+        aiGuidance?.let { advice ->
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "AI Mood Support Tip:",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = advice,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+
+        // History of past selected feelings
+        if (feelingHistory.isNotEmpty()) {
+            Text(
+                text = "Past Selected Feelings (${feelingHistory.size})",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(feelingHistory) { record ->
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Emotions: ${record.emotions.joinToString(", ")}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = record.timestamp,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            }
+                            record.aiGuidance?.let { advice ->
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "AI Advice: $advice",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
