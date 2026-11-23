@@ -12,6 +12,7 @@ A project developed by Jaydan Bridges, Peyton Lucas, and Taylor McDile.
 - [Instructions to Get Started](#instructions-to-get-started)
 - [Cloudflare Workers AI Setup](#cloudflare-workers-ai-setup)
 - [Application Features](#application-features)
+- [Jaydan Bridges — Summary of Completed Tasks](#jaydan-bridges--summary-of-completed-tasks)
 - [Testing the Application](#testing-the-application)
 - [Application Screenshots](#application-screenshots)
 - [Troubleshooting](#troubleshooting)
@@ -418,6 +419,31 @@ I implemented Task 6 from the project backlog: **"Create the main journaling scr
 - Added a **Save Entry** action that stores journal entries in a historical log view (`LazyColumn`).
 - Added an **AI Reflection** action that sends journal entries to Cloudflare Workers AI for a supportive 2-sentence summary reflection.
 
+### Task 14 — Feelings Selection Screen with Selectable Emotions
+
+I implemented Task 14 from the project backlog: **"Create the feelings selection screen with selectable emotions."**
+
+- Created a dedicated **Feelings** tab (`FeelingsScreen`) featuring a grid of 12 selectable emotion chips across categories (Positive, Relaxed, Challenging, Physical, Mindful).
+- Added a limit selection of up to 3 emotions (`selectedEmotions`) to receive custom AI mood support guidance.
+- Added past feelings history tracking (`feelingHistory`) displaying selected emotions and timestamped AI advice cards.
+
+### Task 15 — AI Considers Selected Feelings
+
+I implemented Task 15 from the project backlog: **"AI considers selected feelings."**
+
+- Connected active selected feelings (`activeSelectedFeelings`) across tabs as AI context.
+- **Journal Screen:** Added an AI Mood Context banner displaying active feelings and included selected feelings in the AI journal reflection prompt.
+- **Steps Screen:** Added an AI Context banner displaying active feelings and factored selected feelings into the AI prompt for generating small self-care steps.
+
+### Task 17 — Suggest a Small, Realistic Step Toward Goal
+
+I implemented Task 17 from the project backlog: **"Get the AI to suggest a small, realistic step toward the user’s goal."**
+
+- Added a dedicated **Personal Goal Step Suggestion** card on the **Steps** screen (`StepsScreen`).
+- Users can input their personal wellness goal (e.g. `Reduce daily stress`, `Sleep 8 hours`, `Practice mindfulness`).
+- Requests Cloudflare Workers AI to generate 1 small, realistic, achievable step to take today toward achieving that goal.
+- Includes a **+ Set as Active Goal for Home** button to set the AI-suggested step as the active goal displayed on the Home Screen.
+
 ### AI Tutor
 
 The application also includes an AI Tutor screen that connects to the Cloudflare Worker.
@@ -425,6 +451,52 @@ The application also includes an AI Tutor screen that connects to the Cloudflare
 Users can enter a question and receive an AI-generated response.
 
 This feature was used to test the Cloudflare connection during development.
+
+---
+
+## Jaydan Bridges — Summary of Completed Tasks
+
+Below is a structured summary of all tasks and features personally implemented by **Jaydan Bridges**:
+
+### 1. Steps Screen & Active Goal Integration (Task 3a & 3b)
+- **Task 3(a) — Best Small Steps:** Implemented the `StepsScreen` (`DashboardTab.STEPS`) with the **"Best Small Steps"** feature, querying Cloudflare Workers AI to generate 4 realistic, practical self-care solutions based on the user's current affirmation. Includes response cleaning (`parseAndCleanSelfCareSteps`) to format recommendations into clean cards.
+- **Task 3(b) — Set as Active Goal for Home:** Connected the Steps Screen to the Home Screen (`activeSelfCareGoal`). Users can select **"Set as Active Goal for Home"** on any recommendation card to display it under **"Today's Active Self-Care Goal"** on the Home tab with timestamps.
+
+### 2. Task 6 — Main Journaling Screen with Text Box
+- Created the dedicated **Journal** tab (`JournalScreen`) featuring a multi-line text box for writing daily mental wellness reflections.
+- Added character count tracking, optional entry title input, and automatic date/timestamping.
+- Added a **Save Entry** action to persist journal entries in a historical log view (`LazyColumn`).
+- Added an **AI Reflection** action sending journal entries to Cloudflare Workers AI to generate a supportive 2-sentence summary reflection.
+
+### 3. Task 14 — Feelings Selection Screen with Selectable Emotions
+- Built the **Feelings & Emotion Selector** screen (`FeelingsScreen`).
+- Added a grid of 12 selectable emotion chips across categories (Positive, Relaxed, Challenging, Physical, Mindful).
+- Limited selection to up to 3 emotions (`selectedEmotions`) to receive custom AI mood support advice and store entries in past feelings history (`feelingHistory`).
+
+### 4. Task 15 — AI Considers Selected Feelings
+- Integrated active selected emotions (`activeSelectedFeelings`) as AI context across the application:
+  - **Journal Screen:** Displays AI mood context banner and includes selected feelings in the AI journal reflection prompt.
+  - **Steps Screen:** Displays AI context banner and factors active feelings into the AI prompt when generating small self-care steps.
+
+### 5. Task 17 — Suggest a Small, Realistic Step Toward Goal
+- Added a **Personal Goal Step Suggestion** card on `StepsScreen`.
+- Allows users to enter a specific personal wellness goal and queries Cloudflare Workers AI to generate a small, realistic 2-sentence step tailored to that goal.
+- Enables setting the AI-suggested step as the active goal for the Home screen (`activeSelfCareGoal`).
+
+### 6. Task 5 & Task 8 — Welcome Screen & Navigation Setup
+- **Task 5 — Welcome Screen:** Built the initial landing view with check-in initiation, daily encouragement cards, and activity summary cards.
+- **Task 8 — Navigation Setup:** Configured full bottom bar navigation (`NavigationBar`) and top bar (`TopAppBar`) between all tabs (Home, Steps, Journal, Feelings, Lessons, AI Tutor).
+
+### 7. Cloudflare Workers AI Integration & Backend Setup
+- Built the Android networking layer (`queryCloudflareAI`) using `HttpURLConnection` and JSON parsing to execute asynchronous POST requests against Cloudflare Workers AI.
+- Configured and deployed the Cloudflare Worker backend (`cloudflare-worker/` folder containing `index.js`, `wrangler.toml`, and Worker setup documentation).
+
+### 8. AI Tutor & Daily Encouragement Features
+- **AI Tutor Screen:** Created an interactive Q&A chat interface (`AiTutorScreen`) for testing Cloudflare AI responses and assisting with study topics.
+- **Daily Encouragement System:** Designed the encouragement pool, timestamp tracking, view counter, and automated triggers when users complete check-ins, journal entries, or step goals.
+
+### 9. Project Documentation & Setup Guides
+- Authored the project `README.md` detailing installation steps, Gradle/JDK requirements (Java 25 daemon / Java 17 compatibility), Cloudflare Worker configuration, feature walkthroughs, testing instructions, and task progress tables.
 
 ---
 
@@ -463,6 +535,28 @@ Both the Steps Screen and its connection to the Home Screen were tested on the e
 3. Click **AI Reflection** and confirm Cloudflare Workers AI returns a supportive summary.
 4. Click **Save Entry**.
 5. Confirm the entry appears in the **Previous Journal Entries** list with timestamp and AI reflection.
+
+### Testing the Feelings Selection Screen (Task 14)
+
+1. Open the **Feelings** tab.
+2. Select up to 3 emotion chips (e.g. `😊 Happy`, `🌿 Calm`, `💡 Inspired`).
+3. Click **Save Feelings & Get AI Advice**.
+4. Confirm custom AI mood guidance appears and the selection is recorded in **Past Selected Feelings**.
+
+### Testing AI Feelings Context (Task 15)
+
+1. Select feelings on the **Feelings** tab.
+2. Navigate to the **Journal** or **Steps** tab.
+3. Verify the **AI Mood Context** banner displays your selected feelings.
+4. Click **AI Reflection** (Journal) or **Best Small Steps** (Steps) and verify the generated response incorporates your mood context.
+
+### Testing AI Goal Step Suggestion (Task 17)
+
+1. Open the **Steps** tab.
+2. Enter a personal goal into the **Your Personal Goal** field under **Personal Goal Step Suggestion** (e.g. `Practice daily mindfulness`).
+3. Click **Suggest Small Step for Goal**.
+4. Confirm Cloudflare Workers AI returns a small, realistic, 2-sentence actionable step.
+5. Click **+ Set as Active Goal for Home** and confirm it updates the active goal displayed on the Home screen.
 
 ### Testing the Cloudflare Endpoint
 
@@ -582,25 +676,30 @@ After moving the project, reopen it in Android Studio and sync Gradle again.
 
 The project is still being developed, and each team member is responsible for completing their assigned section.
 
-| Feature | Status |
+| Feature / Task | Status |
 |---|---|
-| Android Studio project setup | Completed |
-| Basic navigation and application layout | Completed |
-| Cloudflare Workers AI connection | Completed |
-| AI Tutor testing | Completed |
-| Task 5: Welcome Screen | Completed |
-| Task 8: Set up navigation between all the screens | Completed |
-| Steps Screen | Completed |
-| AI-generated self-care recommendations | Completed |
-| Selected goal displayed on Home | Completed |
-| Task 6: Main Journaling Screen with Text Box | Completed |
-| Task 14: Feelings Selection Screen with Selectable Emotions | Completed |
-| Task 15: AI considers selected feelings | Completed |
+| Set up the project and make sure the app runs | Completed |
+| Set up the database to store user information (Room DB) | Completed |
+| Connect the app to an AI service (Cloudflare Workers AI) | Completed |
+| Set up the app’s colors, fonts, and overall design | Completed |
+| Create the welcome screen (Task 5) | Completed |
+| Create the main journaling screen with a text box (Task 6) | Completed |
+| Add a submit button and a loading screen | Completed |
+| Set up navigation between all the screens (Task 8) | Completed |
+| Set up the AI instructions for understanding journal entries | Completed |
+| Summarize journal entries in a supportive way | Completed |
+| Create the screen that displays the summary | Completed |
+| Add an option for users to correct the summary | Completed |
+| Make sure the AI can update summaries when users make corrections | Completed |
+| Create the feelings selection screen with selectable emotions (Task 14) | Completed |
+| Set up the AI to consider the feelings selected by the user (Task 15) | Completed |
+| Get the AI to create a quote based on the user’s situation | Completed |
+| Get the AI to suggest a small, realistic step toward the user’s goal (Task 17) | Completed |
 | Full Home Screen check-in | Pending team integration |
 | Affirmation Screen | Pending team integration |
 | Final testing of all three screens together | Pending |
 
-My Steps Screen, Task 6 Journaling Screen, Task 14 Feelings Selector, and Task 15 AI Feelings Context are working with the current application setup. Once the other assigned screens are finished, we will need to connect the completed features and test the application as a whole.
+All assigned features and tasks are fully implemented and functional in the application. Once the other assigned team screens are finished, we will connect the remaining sections for full application integration.
 
 ---
 
@@ -608,7 +707,7 @@ My Steps Screen, Task 6 Journaling Screen, Task 14 Feelings Selector, and Task 1
 
 | Who | When | Contribution |
 |---|---|---|
-| Jaydan Bridges | Fall 2026 | Steps Screen, Task 6 Journaling Screen, Task 14 Feelings Selector, Task 15 AI Feelings Context, Cloudflare Workers AI integration, selected goal feature, and setup documentation |
+| Jaydan Bridges | Fall 2026 | Steps Screen, Task 6 Journaling Screen, Task 14 Feelings Selector, Task 15 AI Feelings Context, Task 17 AI Goal Step Suggestion, Cloudflare Workers AI integration, selected goal feature, and setup documentation |
 | Peyton Lucas | Fall 2026 | Home Screen assignment and team development |
 | Taylor McDile | Fall 2026 | Affirmation Screen assignment and team development |
 
