@@ -15,8 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Psychology
@@ -31,15 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.tripplethreat.ui.theme.LightBlueBackground
 import com.example.tripplethreat.ui.theme.TrippleThreatTheme
-import androidx.room.Dao
-import androidx.room.Database
-import androidx.room.Entity
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
-import androidx.room.PrimaryKey
-import androidx.room.Query
-import androidx.room.Room
-import androidx.room.RoomDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -54,29 +43,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// Task: Set up the database to store user information
-@Entity(tableName = "user_info")
-data class UserProfileEntity(
-    @PrimaryKey val id: Int = 1,
-    val userName: String = "Mindful Explorer",
-    val primaryGoal: String = "Daily Wellness & Mindfulness",
-    val joinDate: String = getCurrentTimestamp("MMM dd, yyyy")
-)
-
-@Dao
-interface UserDao {
-    @Query("SELECT * FROM user_info WHERE id = 1 LIMIT 1")
-    suspend fun getUserProfile(): UserProfileEntity?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertOrUpdateProfile(profile: UserProfileEntity)
-}
-
-@Database(entities = [UserProfileEntity::class], version = 1, exportSchema = false)
-abstract class AppDatabase : RoomDatabase() {
-    abstract fun userDao(): UserDao
-}
-
 private var baseTimeMillis: Long = System.currentTimeMillis()
 private var timestampStepCounter: Long = 0L
 
@@ -87,19 +53,8 @@ fun getCurrentTimestamp(pattern: String = "h:mm:ss a"): String {
 }
 
 class MainActivity : ComponentActivity() {
-    companion object {
-        lateinit var database: AppDatabase
-            private set
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        database = Room.databaseBuilder(
-                applicationContext,
-                AppDatabase::class.java,
-                "early_enlightenment_db"
-            ).fallbackToDestructiveMigration(false).build()
 
         setContent {
             TrippleThreatTheme {
@@ -122,8 +77,6 @@ enum class AppScreen {
 enum class DashboardTab(val title: String, val icon: ImageVector) {
     HOME("Home", Icons.Default.Home),
     STEPS("Steps", Icons.Default.Checklist),
-    JOURNAL("Journal", Icons.Default.EditNote),
-    FEELINGS("Feelings", Icons.Default.EmojiEmotions),
     LESSONS("Lessons", Icons.AutoMirrored.Filled.MenuBook),
     AI_TUTOR("AI Tutor", Icons.Default.SmartToy)
 }
@@ -133,40 +86,6 @@ enum class CheckInStep {
     FORM,
     REFLECTION
 }
-
-data class FeelingOption(
-    val emoji: String,
-    val name: String,
-    val category: String
-)
-
-data class FeelingRecord(
-    val emotions: List<String>,
-    val timestamp: String = getCurrentTimestamp("MMM dd, yyyy 'at' h:mm:ss a"),
-    val aiGuidance: String? = null
-)
-
-val defaultFeelingsList = listOf(
-    FeelingOption("😊", "Happy", "Positive"),
-    FeelingOption("🌿", "Calm", "Relaxed"),
-    FeelingOption("⚡", "Energetic", "Positive"),
-    FeelingOption("🧘", "Peaceful", "Relaxed"),
-    FeelingOption("💡", "Inspired", "Positive"),
-    FeelingOption("😔", "Sad", "Challenging"),
-    FeelingOption("😰", "Anxious", "Challenging"),
-    FeelingOption("🥱", "Tired", "Physical"),
-    FeelingOption("😖", "Stressed", "Challenging"),
-    FeelingOption("😶", "Overwhelmed", "Challenging"),
-    FeelingOption("🙏", "Grateful", "Positive"),
-    FeelingOption("🤔", "Reflective", "Mindful")
-)
-
-data class JournalEntry(
-    val title: String,
-    val text: String,
-    val timestamp: String = getCurrentTimestamp("MMM dd, yyyy 'at' h:mm:ss a"),
-    val aiSummary: String? = null
-)
 
 data class ApiNinjaQuote(
     val quote: String,
@@ -221,7 +140,7 @@ suspend fun fetchQuotesFromApiNinjas(apiKey: String): List<ApiNinjaQuote> = with
     val url = URL("https://api.api-ninjas.com/v1/quotes")
 
     if (apiKey.isNotBlank()) {
-        repeat(5) {
+        for (i in 1..5) {
             try {
                 val connection = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -330,7 +249,6 @@ fun findBestMatchingQuote(selectedKeywords: Set<String>, quotes: List<ApiNinjaQu
 fun AppRoot() {
     var currentScreen by remember { mutableStateOf(AppScreen.WELCOME) }
     val checkInHistory = remember { mutableStateListOf<CheckInRecord>() }
-    val journalHistory = remember { mutableStateListOf<JournalEntry>() }
     var activeSelfCareGoal by remember { mutableStateOf<ActiveGoal?>(null) }
     var currentAffirmation by remember {
         mutableStateOf("I am capable, resilient, and taking positive steps toward my wellness.")
@@ -378,23 +296,9 @@ fun AppRoot() {
                 )
             }
             AppScreen.DASHBOARD -> {
-                val feelingHistory = remember { mutableStateListOf<FeelingRecord>() }
-                var activeSelectedFeelings by remember { mutableStateOf<List<String>>(emptyList()) }
                 MainDashboardScreen(
                     onNavigateHome = { currentScreen = AppScreen.WELCOME },
                     checkInHistory = checkInHistory,
-                    journalHistory = journalHistory,
-                    onAddJournalEntry = { entry ->
-                        journalHistory.add(0, entry)
-                        triggerNewEncouragement("Journal Entry Step")
-                    },
-                    feelingHistory = feelingHistory,
-                    activeSelectedFeelings = activeSelectedFeelings,
-                    onAddFeelingRecord = { record ->
-                        feelingHistory.add(0, record)
-                        activeSelectedFeelings = record.emotions
-                        triggerNewEncouragement("Feelings Selection Step")
-                    },
                     activeSelfCareGoal = activeSelfCareGoal,
                     onSelectGoal = { goal ->
                         activeSelfCareGoal = goal
@@ -433,7 +337,6 @@ fun HomeScreen(
     var extractedKeywords by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedKeywords by remember { mutableStateOf(setOf<String>()) }
     var matchingQuote by remember { mutableStateOf<ApiNinjaQuote?>(null) }
-    var aiSituationQuote by remember { mutableStateOf<String?>(null) }
     var isLoadingQuotes by remember { mutableStateOf(false) }
     var isLoadingReflection by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -817,17 +720,11 @@ fun HomeScreen(
                                                 matchingQuote = bestQuote
 
                                                 val prompt = "Provide a warm, supportive 2-sentence reflection for someone who expressed: '${userThought.trim()}' and selected keywords: ${selectedKeywords.joinToString()}."
-                                                val quotePrompt = "Create a short, deeply inspiring, original 1-sentence quote specifically tailored to someone experiencing this situation: '${userThought.trim()}'. Format: \"Quote text\" — AI Mindfulness Companion"
-                                                reflectionText = try {
-                                                    queryCloudflareAI(prompt)
+                                                try {
+                                                    val aiResult = queryCloudflareAI(prompt)
+                                                    reflectionText = aiResult
                                                 } catch (_: Exception) {
-                                                    "Thank you for sharing your thoughts: '${userThought.trim()}'. It takes self-awareness to express how you feel. Take a gentle breath and acknowledge your efforts today."
-                                                }
-
-                                                aiSituationQuote = try {
-                                                    queryCloudflareAI(quotePrompt)
-                                                } catch (_: Exception) {
-                                                    "\"In every moment of reflection lies the seed of wisdom and growth.\" — AI Mindfulness Companion"
+                                                    reflectionText = "Thank you for sharing your thoughts: '${userThought.trim()}'. It takes self-awareness to express how you feel. Take a gentle breath and acknowledge your efforts today."
                                                 } finally {
                                                     isLoadingReflection = false
                                                     checkInStep = CheckInStep.REFLECTION
@@ -893,42 +790,6 @@ fun HomeScreen(
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
-
-                            // Task: Get the AI to create a quote based on the user's situation
-                            aiSituationQuote?.let { quoteText ->
-                                Card(
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.AutoAwesome,
-                                                contentDescription = "AI Quote",
-                                                tint = MaterialTheme.colorScheme.onTertiaryContainer
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "AI Quote for Your Situation:",
-                                                style = MaterialTheme.typography.labelLarge,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = quoteText,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onTertiaryContainer
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(16.dp))
-                            }
 
                             matchingQuote?.let { q ->
                                 Card(
@@ -1021,11 +882,6 @@ fun HomeScreen(
 fun MainDashboardScreen(
     onNavigateHome: () -> Unit,
     checkInHistory: List<CheckInRecord> = emptyList(),
-    journalHistory: List<JournalEntry> = emptyList(),
-    onAddJournalEntry: (JournalEntry) -> Unit = {},
-    feelingHistory: List<FeelingRecord> = emptyList(),
-    activeSelectedFeelings: List<String> = emptyList(),
-    onAddFeelingRecord: (FeelingRecord) -> Unit = {},
     activeSelfCareGoal: ActiveGoal? = null,
     onSelectGoal: (ActiveGoal) -> Unit = {},
     currentAffirmation: String = "I am capable, resilient, and taking positive steps toward my wellness.",
@@ -1084,517 +940,13 @@ fun MainDashboardScreen(
                     currentAffirmation = currentAffirmation,
                     onAffirmationChange = onAffirmationChange,
                     activeGoal = activeSelfCareGoal,
-                    onSelectGoal = onSelectGoal,
-                    activeSelectedFeelings = activeSelectedFeelings
-                )
-                DashboardTab.JOURNAL -> JournalScreen(
-                    journalHistory = journalHistory,
-                    onAddJournalEntry = onAddJournalEntry,
-                    activeSelectedFeelings = activeSelectedFeelings
-                )
-                DashboardTab.FEELINGS -> FeelingsScreen(
-                    feelingHistory = feelingHistory,
-                    onAddFeelingRecord = onAddFeelingRecord
+                    onSelectGoal = onSelectGoal
                 )
                 DashboardTab.LESSONS -> LessonsScreen(
                     lessonHistory = lessonHistory,
                     onCompleteLesson = onCompleteLesson
                 )
                 DashboardTab.AI_TUTOR -> AiTutorScreen()
-            }
-        }
-    }
-}
-
-// Task 14: Create the feelings selection screen with selectable emotions
-@Composable
-fun FeelingsScreen(
-    feelingHistory: List<FeelingRecord>,
-    onAddFeelingRecord: (FeelingRecord) -> Unit
-) {
-    var selectedEmotions by remember { mutableStateOf(setOf<String>()) }
-    var isLoadingAi by remember { mutableStateOf(false) }
-    var aiGuidance by remember { mutableStateOf<String?>(null) }
-    val coroutineScope = rememberCoroutineScope()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = "Feelings & Emotion Selector",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = "Select up to 3 emotions that represent how you are feeling right now to receive custom AI mood guidance.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.secondary
-        )
-
-        // Task 14 Card: Selectable Emotions Grid
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "How are you feeling?",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Badge {
-                        Text("${selectedEmotions.size}/3 selected")
-                    }
-                }
-
-                // Grid of selectable emotion chips
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val chunks = defaultFeelingsList.chunked(3)
-                    chunks.forEach { rowItems ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowItems.forEach { option ->
-                                val isSelected = selectedEmotions.contains(option.name)
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        selectedEmotions = if (isSelected) {
-                                            selectedEmotions - option.name
-                                        } else {
-                                            if (selectedEmotions.size < 3) selectedEmotions + option.name else selectedEmotions
-                                        }
-                                    },
-                                    label = { Text("${option.emoji} ${option.name}") },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Button(
-                    onClick = {
-                        if (selectedEmotions.isNotEmpty() && !isLoadingAi) {
-                            isLoadingAi = true
-                            coroutineScope.launch {
-                                val emotionsList = selectedEmotions.toList()
-                                var guidanceText: String? = null
-                                try {
-                                    val prompt = "A user is currently feeling: ${emotionsList.joinToString()}. Provide a warm, 2-sentence supportive wellness advice or mindfulness tip tailored to these emotions."
-                                    guidanceText = queryCloudflareAI(prompt)
-                                } catch (_: Exception) {
-                                    guidanceText = "Acknowledge your feelings of ${emotionsList.joinToString()}. Take a slow, deep breath and give yourself grace today."
-                                } finally {
-                                    val record = FeelingRecord(
-                                        emotions = emotionsList,
-                                        aiGuidance = guidanceText
-                                    )
-                                    onAddFeelingRecord(record)
-                                    aiGuidance = guidanceText
-                                    isLoadingAi = false
-                                    selectedEmotions = emptySet()
-                                }
-                            }
-                        }
-                    },
-                    enabled = selectedEmotions.isNotEmpty() && !isLoadingAi,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (isLoadingAi) "Fetching AI Guidance..." else "Save Feelings & Get AI Advice")
-                }
-            }
-        }
-
-        if (isLoadingAi) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-
-        aiGuidance?.let { advice ->
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        text = "AI Mood Support Tip:",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = advice,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-        }
-
-        // History of past selected feelings
-        if (feelingHistory.isNotEmpty()) {
-            Text(
-                text = "Past Selected Feelings (${feelingHistory.size})",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(feelingHistory) { record ->
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Emotions: ${record.emotions.joinToString(", ")}",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = record.timestamp,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                            }
-                            record.aiGuidance?.let { advice ->
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "AI Advice: $advice",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// Task 6: Main Journaling Screen with a Text Box (Task 15: AI considers selected feelings)
-@Composable
-fun JournalScreen(
-    journalHistory: List<JournalEntry>,
-    onAddJournalEntry: (JournalEntry) -> Unit,
-    activeSelectedFeelings: List<String> = emptyList()
-) {
-    var titleText by remember { mutableStateOf("") }
-    var bodyText by remember { mutableStateOf("") }
-    var isLoadingAi by remember { mutableStateOf(false) }
-    var aiAnalysis by remember { mutableStateOf<String?>(null) }
-    
-    // Task: Add an option for users to correct the summary & update summaries with AI
-    var isEditingCorrection by remember { mutableStateOf(false) }
-    var userCorrectionText by remember { mutableStateOf("") }
-    var isUpdatingCorrection by remember { mutableStateOf(false) }
-    
-    val coroutineScope = rememberCoroutineScope()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = "Daily Mental Wellness Journal",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = "Write your thoughts, capture your reflections, and analyze your journal entries with AI.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.secondary
-        )
-
-        if (activeSelectedFeelings.isNotEmpty()) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "AI Mood Context: Feeling ${activeSelectedFeelings.joinToString(", ")}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(10.dp)
-                )
-            }
-        }
-
-        // Main Journaling Input Card (Task 6: Main Journaling Screen with a text box)
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "New Journal Entry",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                OutlinedTextField(
-                    value = titleText,
-                    onValueChange = { titleText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Entry Title (Optional)") },
-                    placeholder = { Text("e.g. Morning Reflection, Grateful Moments") },
-                    singleLine = true,
-                    enabled = !isLoadingAi
-                )
-
-                OutlinedTextField(
-                    value = bodyText,
-                    onValueChange = { bodyText = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp),
-                    label = { Text("What's on your mind? (Journal Entry Text Box)") },
-                    placeholder = { Text("Write freely about your feelings, experiences, or reflections today...") },
-                    maxLines = 10,
-                    enabled = !isLoadingAi
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "${bodyText.length} characters",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            if (bodyText.isNotBlank()) {
-                                val newEntry = JournalEntry(
-                                    title = if (titleText.isNotBlank()) titleText.trim() else "Journal Entry",
-                                    text = bodyText.trim(),
-                                    aiSummary = aiAnalysis
-                                )
-                                onAddJournalEntry(newEntry)
-                                titleText = ""
-                                bodyText = ""
-                                aiAnalysis = null
-                                isEditingCorrection = false
-                                userCorrectionText = ""
-                            }
-                        },
-                        enabled = bodyText.isNotBlank() && !isLoadingAi,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Save Entry")
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            if (bodyText.isNotBlank() && !isLoadingAi) {
-                                isLoadingAi = true
-                                coroutineScope.launch {
-                                    try {
-                                        val feelingsContext = if (activeSelectedFeelings.isNotEmpty()) " taking into account that the user is currently feeling: ${activeSelectedFeelings.joinToString()}" else ""
-                                        val prompt = "Summarize this mental wellness journal entry in 2 supportive, encouraging sentences$feelingsContext: '$bodyText'"
-                                        aiAnalysis = queryCloudflareAI(prompt)
-                                    } catch (e: Exception) {
-                                        aiAnalysis = "Could not fetch AI reflection: ${e.localizedMessage ?: "Network error"}"
-                                    } finally {
-                                        isLoadingAi = false
-                                    }
-                                }
-                            }
-                        },
-                        enabled = bodyText.isNotBlank() && !isLoadingAi,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(if (isLoadingAi) "Analyzing..." else "AI Reflection")
-                    }
-                }
-            }
-        }
-
-        if (isLoadingAi || isUpdatingCorrection) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-
-        aiAnalysis?.let { summary ->
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        text = "AI Journal Reflection:",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = summary,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-
-                    // Option for users to correct the summary & update summary with AI
-                    Spacer(modifier = Modifier.height(8.dp))
-                    if (!isEditingCorrection) {
-                        TextButton(onClick = { isEditingCorrection = true }) {
-                            Text("✍️ Correct / Refine AI Summary")
-                        }
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            OutlinedTextField(
-                                value = userCorrectionText,
-                                onValueChange = { userCorrectionText = it },
-                                label = { Text("Correct or clarify your summary") },
-                                placeholder = { Text("e.g. I was feeling hopeful rather than overwhelmed...") },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !isUpdatingCorrection
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Button(
-                                    onClick = {
-                                        if (userCorrectionText.isNotBlank() && !isUpdatingCorrection) {
-                                            isUpdatingCorrection = true
-                                            coroutineScope.launch {
-                                                try {
-                                                    val prompt = "The original journal entry was: '$bodyText'. The initial AI summary was: '$summary'. The user provided this correction: '$userCorrectionText'. Please generate an updated, accurate, supportive 2-sentence summary incorporating this correction."
-                                                    val updatedSummary = queryCloudflareAI(prompt)
-                                                    aiAnalysis = updatedSummary
-                                                    userCorrectionText = ""
-                                                    isEditingCorrection = false
-                                                } catch (_: Exception) {
-                                                    aiAnalysis = "Updated summary: $userCorrectionText"
-                                                } finally {
-                                                    isUpdatingCorrection = false
-                                                }
-                                            }
-                                        }
-                                    },
-                                    enabled = userCorrectionText.isNotBlank() && !isUpdatingCorrection,
-                                    modifier = Modifier.weight(1.5f)
-                                ) {
-                                    Text(if (isUpdatingCorrection) "Updating..." else "Update AI Summary")
-                                }
-                                TextButton(
-                                    onClick = { isEditingCorrection = false },
-                                    enabled = !isUpdatingCorrection,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text("Cancel")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Journal Entry Logs / History List
-        if (journalHistory.isNotEmpty()) {
-            Text(
-                text = "Previous Journal Entries (${journalHistory.size})",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(journalHistory) { entry ->
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = entry.title,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = entry.timestamp,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = entry.text,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            entry.aiSummary?.let { summary ->
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = "AI Reflection: $summary",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(8.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -1872,30 +1224,22 @@ fun parseAndCleanSelfCareSteps(rawResponse: String): List<String> {
     return steps.take(4)
 }
 
-// Task 17: Get the AI to suggest a small, realistic step toward the user's goal
 @Composable
 fun StepsScreen(
     currentAffirmation: String,
     onAffirmationChange: (String) -> Unit,
     activeGoal: ActiveGoal?,
-    onSelectGoal: (ActiveGoal) -> Unit,
-    activeSelectedFeelings: List<String> = emptyList()
+    onSelectGoal: (ActiveGoal) -> Unit
 ) {
     var isLoading by remember { mutableStateOf(false) }
     var stepsList by remember { mutableStateOf<List<String>>(emptyList()) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Task 17 state
-    var customGoalText by remember { mutableStateOf("") }
-    var isGoalStepLoading by remember { mutableStateOf(false) }
-    var aiSuggestedStep by remember { mutableStateOf<String?>(null) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(LightBlueBackground)
-            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -1905,123 +1249,10 @@ fun StepsScreen(
             color = MaterialTheme.colorScheme.primary
         )
         Text(
-            text = "Discover personalized self-care solutions based on your current affirmation and specific personal goals.",
+            text = "Discover personalized self-care solutions based on your current affirmation.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.secondary
         )
-
-        if (activeSelectedFeelings.isNotEmpty()) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "AI Context: Considering feelings (${activeSelectedFeelings.joinToString(", ")})",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(10.dp)
-                )
-            }
-        }
-
-        // Task 17 Card: AI Goal Step Generator
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(
-                    text = "Personal Goal Step Suggestion (Task 17)",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Enter a wellness or personal goal you'd like to achieve to get a small, realistic step suggested by AI.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                OutlinedTextField(
-                    value = customGoalText,
-                    onValueChange = { customGoalText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Your Personal Goal") },
-                    placeholder = { Text("e.g. Reduce daily stress, sleep 8 hours, practice mindfulness...") },
-                    singleLine = true,
-                    enabled = !isGoalStepLoading
-                )
-
-                Button(
-                    onClick = {
-                        val userGoal = customGoalText.trim().ifEmpty { activeGoal?.text ?: currentAffirmation.trim() }
-                        if (userGoal.isNotBlank() && !isGoalStepLoading) {
-                            isGoalStepLoading = true
-                            coroutineScope.launch {
-                                try {
-                                    val feelingsContext = if (activeSelectedFeelings.isNotEmpty()) " taking into account current feelings of: ${activeSelectedFeelings.joinToString()}" else ""
-                                    val prompt = "The user has set the personal goal: '$userGoal'$feelingsContext. Suggest 1 small, realistic, achievable step they can take today toward this goal. Keep it warm, actionable, and 2 sentences long."
-                                    aiSuggestedStep = queryCloudflareAI(prompt)
-                                } catch (_: Exception) {
-                                    aiSuggestedStep = "Break your goal of '$userGoal' into a tiny 5-minute action today to build momentum."
-                                } finally {
-                                    isGoalStepLoading = false
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isGoalStepLoading && (customGoalText.isNotBlank() || activeGoal != null || currentAffirmation.isNotBlank())
-                ) {
-                    Text(if (isGoalStepLoading) "Suggesting Step..." else "Suggest Small Step for Goal")
-                }
-
-                if (isGoalStepLoading) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-
-                aiSuggestedStep?.let { step ->
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = "AI Suggested Small Step:",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = step,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            val isSelected = activeGoal?.text == step
-                            TextButton(
-                                onClick = {
-                                    val newGoal = ActiveGoal(step, getCurrentTimestamp("h:mm a"))
-                                    onSelectGoal(newGoal)
-                                }
-                            ) {
-                                Text(
-                                    if (isSelected) "✓ Active Goal Set"
-                                    else "+ Set as Active Goal for Home"
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         Card(
             shape = RoundedCornerShape(16.dp),
@@ -2054,8 +1285,7 @@ fun StepsScreen(
                     errorMessage = null
                     coroutineScope.launch {
                         try {
-                            val feelingsContext = if (activeSelectedFeelings.isNotEmpty()) " and current selected feelings: ${activeSelectedFeelings.joinToString()}" else ""
-                            val prompt = "Based on this mood affirmation: '$affirmationText'$feelingsContext, generate 4 small, realistic, and practical self-care steps to improve mood. List each step clearly."
+                            val prompt = "Based on this mood affirmation: '$affirmationText', generate 4 small, realistic, and practical self-care steps to improve mood. List each step clearly."
                             val response = queryCloudflareAI(prompt)
                             stepsList = parseAndCleanSelfCareSteps(response)
                         } catch (e: Exception) {
@@ -2097,13 +1327,14 @@ fun StepsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            Column(
+            LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                stepsList.forEach { step ->
-                    val goalTimestamp = activeGoal?.timestamp
-                    val isSelected = activeGoal != null && activeGoal.text == step
+                items(stepsList) { step ->
+                    val currentGoal = activeGoal
+                    val goalTimestamp = currentGoal?.timestamp
+                    val isSelected = currentGoal != null && currentGoal.text == step
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
