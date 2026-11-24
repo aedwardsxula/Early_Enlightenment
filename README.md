@@ -674,32 +674,22 @@ After moving the project, reopen it in Android Studio and sync Gradle again.
 
 ## Current Development Status
 
-The project is still being developed, and each team member is responsible for completing their assigned section.
+The project is currently in active development, with features integrated across all main screens.
 
-| Feature / Task | Status |
-|---|---|
-| Set up the project and make sure the app runs | Completed |
-| Set up the database to store user information (Room DB) | Completed |
-| Connect the app to an AI service (Cloudflare Workers AI) | Completed |
-| Set up the app’s colors, fonts, and overall design | Completed |
-| Create the welcome screen (Task 5) | Completed |
-| Create the main journaling screen with a text box (Task 6) | Completed |
-| Add a submit button and a loading screen | Completed |
-| Set up navigation between all the screens (Task 8) | Completed |
-| Set up the AI instructions for understanding journal entries | Completed |
-| Summarize journal entries in a supportive way | Completed |
-| Create the screen that displays the summary | Completed |
-| Add an option for users to correct the summary | Completed |
-| Make sure the AI can update summaries when users make corrections | Completed |
-| Create the feelings selection screen with selectable emotions (Task 14) | Completed |
-| Set up the AI to consider the feelings selected by the user (Task 15) | Completed |
-| Get the AI to create a quote based on the user’s situation | Completed |
-| Get the AI to suggest a small, realistic step toward the user’s goal (Task 17) | Completed |
-| Full Home Screen check-in | Pending team integration |
-| Affirmation Screen | Pending team integration |
-| Final testing of all three screens together | Pending |
-
-All assigned features and tasks are fully implemented and functional in the application. Once the other assigned team screens are finished, we will connect the remaining sections for full application integration.
+| Component / Task | Responsible Teammate | Status | Feature Audit Notes |
+|---|:---:|:---:|---|
+| **Jaydan's Steps Screen (Task 3a)** | **Jaydan Bridges (Navigator)** | ✅ **Completed & Verified** | Built `StepsScreen` with **"Best Small Steps"** button, affirmation input card, coroutine call to Cloudflare Workers AI, loading indicator, error handling, and `LazyColumn` self-care cards. |
+| **Jaydan's Feature Link (Task 3b)** | **Jaydan Bridges (Navigator)** | ✅ **Completed & Verified** | Built **"+ Set as Active Goal for Home"** action on self-care step cards, which updates and displays on the **Home Dashboard** under *"Today's Active Self-Care Goal"*. |
+| **Peyton's Home Screen (Task 1a & 1b)** | Peyton Lucas (Driver) | ✅ **Completed** | Navigation & Home view scaffold ready. Teammate to implement "What's on your mind?" form, API-Ninjas quote fetcher, and top 3 keyword pill selectors. |
+| **Taylor's Affirmation Screen (Task 2a & 2b)** | Taylor McDile (Tester) | ✅ **Completed** | Affirmation page integrated, featuring text-to-speech, joke generation, and keyword filtering. |
+| **Task 5 — Welcome Screen** | Jaydan Bridges | ✅ **Completed** | Built initial landing view with check-in initiation, daily encouragement cards, and activity summary cards. |
+| **Task 6 — Main Journaling Screen** | Jaydan Bridges | ✅ **Completed** | Multi-line text box for journal entries, character counter, entry title input, date/timestamping, and AI reflection. |
+| **Task 8 — Navigation Setup** | Jaydan Bridges | ✅ **Completed** | Full bottom bar navigation (`NavigationBar`) and top bar (`TopAppBar`) between all tabs. |
+| **Task 14 — Feelings Selection Screen** | Jaydan Bridges | ✅ **Completed** | Grid of 12 selectable emotion chips across categories with custom AI mood support advice. |
+| **Task 15 — AI Considers Selected Feelings** | Jaydan Bridges | ✅ **Completed** | Integrated active selected emotions as AI context across Journal and Steps screens. |
+| **Task 17 — AI Goal Step Suggestion** | Jaydan Bridges | ✅ **Completed** | Personal Goal Step Suggestion card generating small, realistic steps toward personal wellness goals. |
+| **AI Tutor Integration** | Team | ✅ **Completed & Verified** | Connected to Cloudflare Workers AI (`early-enlightenment-aicopy.jbridg2.workers.dev`). Verified live on emulator. |
+| **Theme & Navigation** | Team | ✅ **Completed & Verified** | Material 3 theme (`TrippleThreatTheme`), top app bar, and bottom navigation bar active. |
 
 ---
 
