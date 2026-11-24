@@ -1331,9 +1331,8 @@ fun StepsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(stepsList) { step ->
-                    val currentGoal = activeGoal
-                    val goalTimestamp = currentGoal?.timestamp
-                    val isSelected = currentGoal != null && currentGoal.text == step
+                    val goalTimestamp = activeGoal?.timestamp
+                    val isSelected = activeGoal != null && activeGoal.text == step
                     Card(
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
