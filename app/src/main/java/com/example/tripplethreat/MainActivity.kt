@@ -1,8 +1,11 @@
 package com.example.tripplethreat
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CheckCircle
@@ -342,6 +346,150 @@ suspend fun fetchVerifiedSupportAffirmation(
     }
 
     Pair(candidate, currentStars)
+}
+
+val defaultKeywordsToAvoid = listOf(
+    "Work", "Stress", "Time", "Money", "Busy", "Problem", "Tired", "Failure"
+)
+
+data class JokeResultData(
+    val jokeText: String,
+    val keywordCount: Int,
+    val isCat: Boolean,
+    val petBitmap: Bitmap?
+)
+
+suspend fun fetchBitmapFromUrl(urlString: String): Bitmap? = withContext(Dispatchers.IO) {
+    try {
+        val connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 5000
+            readTimeout = 5000
+            setRequestProperty("User-Agent", "Mozilla/5.0")
+        }
+        val bitmap = BitmapFactory.decodeStream(connection.inputStream)
+        connection.disconnect()
+        bitmap
+    } catch (_: Exception) {
+        null
+    }
+}
+
+suspend fun fetchJokeAndAnimalImage(
+    keywordsToAvoid: Set<String>
+): JokeResultData = withContext(Dispatchers.IO) {
+    val rawJokes = mutableListOf<String>()
+
+    // Primary: Fetch 5 jokes from API Ninjas Jokes API
+    val apiKey = try {
+        File("API_KEY.txt").readText().trim()
+    } catch (_: Exception) {
+        ""
+    }
+
+    if (apiKey.isNotBlank()) {
+        try {
+            val url = URL("https://api.api-ninjas.com/v1/jokes?limit=5")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                setRequestProperty("X-Api-Key", apiKey)
+                setRequestProperty("Accept", "application/json")
+                connectTimeout = 5000
+                readTimeout = 5000
+            }
+            if (connection.responseCode in 200..299) {
+                val responseText = BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { it.readText() }
+                val jsonArray = JSONArray(responseText)
+                for (i in 0 until jsonArray.length()) {
+                    val jokeObj = jsonArray.getJSONObject(i)
+                    val jokeStr = jokeObj.optString("joke", "")
+                    if (jokeStr.isNotBlank()) rawJokes.add(jokeStr.trim())
+                }
+            }
+            connection.disconnect()
+        } catch (_: Exception) {}
+    }
+
+    // Secondary: If API key missing or API Ninjas returns fewer than 5, fetch remaining from JokeAPI
+    if (rawJokes.size < 5) {
+        try {
+            val url = URL("https://v2.jokeapi.dev/joke/Any?type=single&amount=${5 - rawJokes.size}")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5000
+                readTimeout = 5000
+            }
+            if (connection.responseCode in 200..299) {
+                val responseText = BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { it.readText() }
+                val jsonObj = JSONObject(responseText)
+                val jokesArray = jsonObj.optJSONArray("jokes")
+                if (jokesArray != null) {
+                    for (i in 0 until jokesArray.length()) {
+                        val jObj = jokesArray.getJSONObject(i)
+                        val jokeStr = if (jObj.has("joke")) {
+                            jObj.optString("joke", "")
+                        } else {
+                            jObj.optString("setup", "") + " " + jObj.optString("delivery", "")
+                        }
+                        if (jokeStr.isNotBlank()) rawJokes.add(jokeStr.trim())
+                    }
+                }
+            }
+            connection.disconnect()
+        } catch (_: Exception) {}
+    }
+
+    if (rawJokes.size < 5) {
+        val fallbackPool = listOf(
+            "Why don't scientists trust atoms? Because they make up everything!",
+            "Why did the scarecrow win an award? Because he was outstanding in his field!",
+            "I told my computer I needed a break, and now it won't stop sending me KitKats.",
+            "Parallel lines have so much in common. It's a shame they'll never meet.",
+            "What do you call a fake noodle? An impasta!",
+            "Why do cows have hooves instead of feet? Because they lactose!",
+            "How does a penguin build its house? Igloos it together!"
+        )
+        val missing = 5 - rawJokes.size
+        rawJokes.addAll(fallbackPool.shuffled().take(missing))
+    }
+
+    var bestJokeText = rawJokes.first()
+    var lowestCount = Int.MAX_VALUE
+
+    for (jokeText in rawJokes) {
+        val jokeLower = jokeText.lowercase()
+        val count = keywordsToAvoid.count { kw -> jokeLower.contains(kw.lowercase()) }
+        if (count < lowestCount) {
+            lowestCount = count
+            bestJokeText = jokeText
+        }
+    }
+
+    if (lowestCount == Int.MAX_VALUE) lowestCount = 0
+
+    val isCat = lowestCount > 0
+    val imageUrl = if (isCat) {
+        "https://cataas.com/cat?width=400&height=300"
+    } else {
+        try {
+            val dogConn = (URL("https://dog.ceo/api/breeds/image/random").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3000
+                readTimeout = 3000
+            }
+            val res = BufferedReader(InputStreamReader(dogConn.inputStream)).use { it.readText() }
+            dogConn.disconnect()
+            JSONObject(res).optString("message", "https://images.dog.ceo/breeds/retriever-golden/n02099601_100.jpg")
+        } catch (_: Exception) {
+            "https://images.dog.ceo/breeds/retriever-golden/n02099601_100.jpg"
+        }
+    }
+
+    val petBitmap = fetchBitmapFromUrl(imageUrl)
+
+    JokeResultData(
+        jokeText = bestJokeText,
+        keywordCount = lowestCount,
+        isCat = isCat,
+        petBitmap = petBitmap
+    )
 }
 
 @Composable
@@ -1348,24 +1496,164 @@ fun AffirmationScreen(
     currentAffirmation: String,
     onAffirmationChange: (String) -> Unit
 ) {
+    var selectedAvoidKeywords by remember { mutableStateOf(setOf<String>()) }
+    var isLoadingJokeSupport by remember { mutableStateOf(false) }
+    var jokeResult by remember { mutableStateOf<JokeResultData?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(LightBlueBackground)
             .padding(16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Affirmation & Support",
+            text = "Affirmation & Humor Support",
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.primary
         )
-        Text(
-            text = "Select keywords to avoid to receive tailored jokes and supportive pet photos.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.secondary
-        )
+
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Favorite,
+                        contentDescription = "Affirmation Support",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Keywords to Avoid",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Select keywords you wish to avoid in your support joke:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    defaultKeywordsToAvoid.forEach { keyword ->
+                        val isSelected = selectedAvoidKeywords.contains(keyword)
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedAvoidKeywords = if (isSelected) {
+                                    selectedAvoidKeywords - keyword
+                                } else {
+                                    selectedAvoidKeywords + keyword
+                                }
+                            },
+                            label = { Text(keyword, style = MaterialTheme.typography.bodySmall) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                if (isLoadingJokeSupport) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Fetching 5 jokes and analyzing keywords for pet image selection...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                } else {
+                    Button(
+                        onClick = {
+                            isLoadingJokeSupport = true
+                            coroutineScope.launch {
+                                val result = fetchJokeAndAnimalImage(selectedAvoidKeywords)
+                                jokeResult = result
+                                isLoadingJokeSupport = false
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Provide Support",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
+            }
+        }
+
+        jokeResult?.let { result ->
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "Tailored Support Joke",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "\"${result.jokeText}\"",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+
+                    result.petBitmap?.let { bitmap ->
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(240.dp)
+                        ) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = if (result.isCat) "Cat Picture" else "Dog Picture",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
