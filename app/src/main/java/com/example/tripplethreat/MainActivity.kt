@@ -3,6 +3,7 @@ package com.example.tripplethreat
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -15,8 +16,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Home
@@ -589,6 +593,35 @@ fun HomeScreen(
     var isLoadingReflection by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
+    val context = LocalContext.current
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    var isSpeaking by remember { mutableStateOf(false) }
+
+    DisposableEffect(context) {
+        val speech = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                // Speech engine initialized
+            }
+        }
+        speech.language = Locale.US
+        tts = speech
+        onDispose {
+            speech.stop()
+            speech.shutdown()
+        }
+    }
+
+    fun toggleSpeech(text: String) {
+        val s = tts ?: return
+        if (s.isSpeaking) {
+            s.stop()
+            isSpeaking = false
+        } else {
+            s.speak(text, TextToSpeech.QUEUE_FLUSH, null, "AffirmationTTS")
+            isSpeaking = true
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -998,6 +1031,18 @@ fun HomeScreen(
                                             style = MaterialTheme.typography.labelLarge,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                                         )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        OutlinedButton(
+                                            onClick = { toggleSpeech("${q.quote}. ${reflectionText}") },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isSpeaking) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                                contentDescription = null
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(if (isSpeaking) "Stop Audio" else "Listen Aloud")
+                                        }
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
