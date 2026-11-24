@@ -78,9 +78,8 @@ enum class AppScreen {
 
 enum class DashboardTab(val title: String, val icon: ImageVector) {
     HOME("Home", Icons.Default.Home),
-    STEPS("Steps", Icons.Default.Checklist),
-    LESSONS("Lessons", Icons.AutoMirrored.Filled.MenuBook),
-    AI_TUTOR("AI Tutor", Icons.Default.SmartToy)
+    AFFIRMATION("Affirmation", Icons.Default.Favorite),
+    STEPS("Steps", Icons.Default.Checklist)
 }
 
 enum class CheckInStep {
@@ -347,7 +346,7 @@ suspend fun fetchVerifiedSupportAffirmation(
 
 @Composable
 fun AppRoot() {
-    var currentScreen by remember { mutableStateOf(AppScreen.WELCOME) }
+    var currentScreen by remember { mutableStateOf(AppScreen.DASHBOARD) }
     val checkInHistory = remember { mutableStateListOf<CheckInRecord>() }
     var activeSelfCareGoal by remember { mutableStateOf<ActiveGoal?>(null) }
     var currentAffirmation by remember {
@@ -392,14 +391,14 @@ fun AppRoot() {
                     activeSelfCareGoal = activeSelfCareGoal,
                     currentEncouragement = currentEncouragement,
                     encouragementViewCount = encouragementViewCount,
-                    onGetNewEncouragement = { triggerNewEncouragement("Button Click") },
-                    onAffirmationChange = { currentAffirmation = it }
+                    onGetNewEncouragement = { triggerNewEncouragement("Button Click") }
                 )
             }
             AppScreen.DASHBOARD -> {
                 MainDashboardScreen(
                     onNavigateHome = { currentScreen = AppScreen.WELCOME },
                     checkInHistory = checkInHistory,
+                    onAddCheckIn = { record -> checkInHistory.add(0, record) },
                     activeSelfCareGoal = activeSelfCareGoal,
                     onSelectGoal = { goal ->
                         activeSelfCareGoal = goal
@@ -429,8 +428,7 @@ fun HomeScreen(
     activeSelfCareGoal: ActiveGoal? = null,
     currentEncouragement: EncouragementRecord? = null,
     encouragementViewCount: Int = 0,
-    onGetNewEncouragement: () -> Unit = {},
-    onAffirmationChange: (String) -> Unit = {}
+    onGetNewEncouragement: () -> Unit = {}
 ) {
     var checkInStep by remember { mutableStateOf(CheckInStep.IDLE) }
     var userThought by remember { mutableStateOf("") }
@@ -441,15 +439,6 @@ fun HomeScreen(
     var matchingQuote by remember { mutableStateOf<ApiNinjaQuote?>(null) }
     var isLoadingQuotes by remember { mutableStateOf(false) }
     var isLoadingReflection by remember { mutableStateOf(false) }
-
-    var userFeelingSummary by remember { mutableStateOf("") }
-    var currentEmotionKeywords by remember { mutableStateOf(defaultEmotionKeywords) }
-    var isAnalyzingEmotions by remember { mutableStateOf(false) }
-    var selectedEmotionKeywords by remember { mutableStateOf(setOf<String>()) }
-    var generatedSupportAffirmation by remember { mutableStateOf<String?>(null) }
-    var aiStarRating by remember { mutableIntStateOf(0) }
-    var isLoadingSupportAffirmation by remember { mutableStateOf(false) }
-
     val coroutineScope = rememberCoroutineScope()
 
     Box(
@@ -465,6 +454,22 @@ fun HomeScreen(
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Text(
+                text = "Early Enlightenment",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Your Mindful AI Companion",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.secondary
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
             when (checkInStep) {
                 CheckInStep.IDLE -> {
                     Card(
@@ -499,188 +504,6 @@ fun HomeScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Card(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = "Affirmation Support",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Affirmation & Support Builder",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = "How are you feeling right now? Tell us below:",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            OutlinedTextField(
-                                value = userFeelingSummary,
-                                onValueChange = { userFeelingSummary = it },
-                                placeholder = { Text("e.g. Feeling stressed about work, but hopeful for progress...") },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !isLoadingSupportAffirmation && !isAnalyzingEmotions
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            OutlinedButton(
-                                onClick = {
-                                    if (userFeelingSummary.isNotBlank() && !isAnalyzingEmotions) {
-                                        isAnalyzingEmotions = true
-                                        coroutineScope.launch {
-                                            val extracted = analyzeEmotionsWithAi(userFeelingSummary)
-                                            currentEmotionKeywords = extracted
-                                            selectedEmotionKeywords = emptySet()
-                                            isAnalyzingEmotions = false
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = userFeelingSummary.isNotBlank() && !isAnalyzingEmotions
-                            ) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(if (isAnalyzingEmotions) "Extracting AI Emotions..." else "Analyze Feelings with AI")
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text(
-                                text = "Select emotion keywords (${selectedEmotionKeywords.size} selected):",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            @OptIn(ExperimentalLayoutApi::class)
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                currentEmotionKeywords.forEach { keyword ->
-                                    val isSelected = selectedEmotionKeywords.contains(keyword)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            selectedEmotionKeywords = if (isSelected) {
-                                                selectedEmotionKeywords - keyword
-                                            } else {
-                                                selectedEmotionKeywords + keyword
-                                            }
-                                        },
-                                        label = { Text(keyword, style = MaterialTheme.typography.bodySmall) }
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            if (isLoadingSupportAffirmation) {
-                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Evaluating affirmation with AI ranking loop (aiming for 4+ stars)...",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                            } else {
-                                Button(
-                                    onClick = {
-                                        isLoadingSupportAffirmation = true
-                                        coroutineScope.launch {
-                                            val (affirmation, stars) = fetchVerifiedSupportAffirmation(
-                                                selectedEmotionKeywords.toList(),
-                                                userFeelingSummary
-                                            )
-                                            generatedSupportAffirmation = affirmation
-                                            aiStarRating = stars
-                                            onAffirmationChange(affirmation)
-                                            isLoadingSupportAffirmation = false
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    enabled = (userFeelingSummary.isNotBlank() || selectedEmotionKeywords.isNotEmpty()) && !isLoadingSupportAffirmation
-                                ) {
-                                    Icon(Icons.Default.Favorite, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Provide Support")
-                                }
-                            }
-
-                            generatedSupportAffirmation?.let { affirmationText ->
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Card(
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Your Personalized Affirmation",
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                            Badge(containerColor = MaterialTheme.colorScheme.primary) {
-                                                Text("⭐ $aiStarRating/5 Stars (AI Verified)")
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(8.dp))
-
-                                        Text(
-                                            text = "\"$affirmationText\"",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-
-                                        if (selectedEmotionKeywords.isNotEmpty()) {
-                                            val countToInclude = kotlin.math.max(1, (selectedEmotionKeywords.size + 1) / 2)
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Text(
-                                                text = "Includes >=50% selected keywords (${countToInclude}/${selectedEmotionKeywords.size} required)",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
 
@@ -1082,6 +905,7 @@ fun HomeScreen(
 fun MainDashboardScreen(
     onNavigateHome: () -> Unit,
     checkInHistory: List<CheckInRecord> = emptyList(),
+    onAddCheckIn: (CheckInRecord) -> Unit = {},
     activeSelfCareGoal: ActiveGoal? = null,
     onSelectGoal: (ActiveGoal) -> Unit = {},
     currentAffirmation: String = "I am capable, resilient, and taking positive steps toward my wellness.",
@@ -1127,14 +951,15 @@ fun MainDashboardScreen(
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
-                DashboardTab.HOME -> HomeDashboardTab(
-                    onNavigateHome = onNavigateHome,
-                    activeSelfCareGoal = activeSelfCareGoal,
+                DashboardTab.HOME -> HomeScreen(
+                    onStartLearning = {},
                     checkInHistory = checkInHistory,
-                    lessonHistory = lessonHistory,
-                    currentEncouragement = currentEncouragement,
-                    encouragementViewCount = encouragementViewCount,
-                    onGetNewEncouragement = onGetNewEncouragement
+                    onAddCheckIn = onAddCheckIn,
+                    activeSelfCareGoal = activeSelfCareGoal
+                )
+                DashboardTab.AFFIRMATION -> AffirmationScreen(
+                    currentAffirmation = currentAffirmation,
+                    onAffirmationChange = onAffirmationChange
                 )
                 DashboardTab.STEPS -> StepsScreen(
                     currentAffirmation = currentAffirmation,
@@ -1142,11 +967,6 @@ fun MainDashboardScreen(
                     activeGoal = activeSelfCareGoal,
                     onSelectGoal = onSelectGoal
                 )
-                DashboardTab.LESSONS -> LessonsScreen(
-                    lessonHistory = lessonHistory,
-                    onCompleteLesson = onCompleteLesson
-                )
-                DashboardTab.AI_TUTOR -> AiTutorScreen()
             }
         }
     }
@@ -1520,6 +1340,32 @@ fun StepsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun AffirmationScreen(
+    currentAffirmation: String,
+    onAffirmationChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(LightBlueBackground)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Affirmation & Support",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = "Select keywords to avoid to receive tailored jokes and supportive pet photos.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.secondary
+        )
     }
 }
 
