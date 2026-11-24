@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -145,7 +144,7 @@ suspend fun fetchQuotesFromApiNinjas(apiKey: String): List<ApiNinjaQuote> = with
     val url = URL("https://api.api-ninjas.com/v1/quotes")
 
     if (apiKey.isNotBlank()) {
-        for (i in 1..5) {
+        repeat(5) {
             try {
                 val connection = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -351,12 +350,12 @@ fun HomeScreen(
     var isSpeaking by remember { mutableStateOf(false) }
 
     DisposableEffect(context) {
-        val speech = TextToSpeech(context) { status ->
+        lateinit var speech: TextToSpeech
+        speech = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                // Speech engine initialized
+                speech.language = Locale.US
             }
         }
-        speech.language = Locale.US
         tts = speech
         onDispose {
             speech.stop()
@@ -370,7 +369,7 @@ fun HomeScreen(
             s.stop()
             isSpeaking = false
         } else {
-            s.speak(text, TextToSpeech.QUEUE_FLUSH, null, "AffirmationTTS")
+            s.speak(text, TextToSpeech.QUEUE_FLUSH, null, "Affirmations")
             isSpeaking = true
         }
     }
@@ -863,7 +862,7 @@ fun HomeScreen(
                                         )
                                         Spacer(modifier = Modifier.height(10.dp))
                                         OutlinedButton(
-                                            onClick = { toggleSpeech("${q.quote}. ${reflectionText}") },
+                                            onClick = { toggleSpeech("${q.quote}. $reflectionText") },
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Icon(
